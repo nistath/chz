@@ -59,3 +59,9 @@ exclude_lines = [
     "if TYPE_CHECKING",
     "elif TYPE_CHECKING",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pyright>=1.1.407",
+]
