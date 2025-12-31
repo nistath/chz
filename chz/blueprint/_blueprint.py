@@ -10,9 +10,12 @@ import sys
 import textwrap
 import typing
 from dataclasses import dataclass
-from typing import Any, Callable, Final, Generic, Mapping, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Final, Generic, Mapping, Protocol
 
 from typing_extensions import TypeVar
+
+if TYPE_CHECKING:
+    from chz.mud import MudView
 
 import chz
 from chz.blueprint._argmap import ArgumentMap, Layer, _FoundArgument, join_arg_path
@@ -356,6 +359,51 @@ class Blueprint(Generic[_T_cov_def]):
         """Instantiate or call the target object or callable."""
         r = self._make_lazy()
         return self._make_from_make_result(r)
+
+    def mud(self) -> "MudView[_T_cov_def]":
+        """Return a mutable view of this Blueprint.
+
+        The view acts like a chz instance but is mutable. Writes are
+        immediately applied to the Blueprint. Reads freeze values.
+
+        Example:
+            bp = Blueprint(Config)
+            m = bp.mud()
+            m.name = "hello"
+            m.model.n_layers = 10
+            print(m.name)  # Freezes 'name'
+            config = bp.make()  # Includes mud writes
+        """
+        from chz.mud import MudView
+
+        # Singleton: return same view on repeated calls
+        if not hasattr(self, "_mud_view"):
+            target_class = self._get_target_class()
+            self._mud_view: MudView[_T_cov_def] = MudView(self, target_class, "")
+        return self._mud_view
+
+    def _get_target_class(self) -> type[_T_cov_def]:
+        """Extract the target chz class from this Blueprint."""
+        target = self.target
+        if isinstance(target, chz.factories.MetaFactory):
+            if isinstance(target, chz.factories.standard):
+                annotation = target.annotation
+                if not isinstance(annotation, type):
+                    raise TypeError(
+                        f"Cannot get target class from MetaFactory annotation {annotation}. "
+                        "Use Blueprint with a direct chz class for mud()."
+                    )
+                return annotation  # type: ignore[return-value]
+            raise TypeError(
+                f"Cannot get target class from MetaFactory {target}. "
+                "Use Blueprint with a direct chz class for mud()."
+            )
+        if not isinstance(target, type) or not chz.is_chz(target):
+            raise TypeError(
+                f"mud() requires a chz class, got {target}. "
+                "Blueprint target must be a chz class for mud()."
+            )
+        return target  # type: ignore[return-value]
 
     def make_from_argv(
         self, argv: list[str] | None = None, allow_hyphens: bool = False

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, TypeVar, overload
 
-from . import blueprint, factories, mungers, tiepin, validators
+from . import blueprint, factories, mud as mud_module, mungers, tiepin, validators
 from .blueprint import (
     Blueprint,
     Castable,
@@ -21,6 +21,7 @@ from .data_model import (
     traverse,
 )
 from .field import field
+from .mud import FrozenPropertyError, MudView
 from .validators import validate
 
 __all__ = [
@@ -43,6 +44,9 @@ __all__ = [
     "validators",
     "mungers",
     "Castable",
+    # mud - mutable mode (Blueprint.mud() returns MudView)
+    "MudView",
+    "FrozenPropertyError",
     # are the following public?
     "blueprint",
     "factories",
