@@ -231,10 +231,21 @@ class Blueprint(Generic[_T_cov_def]):
         )
 
         self._arg_map = ArgumentMap([])
+        self._mud_read_layers: list[Any] = []
+        self._mud_frozen_paths: set[str] = set()
+        self._mud_frozen_prefixes: set[str] = set()
+        self._mud_read_index = 0
+        self._mud_write_index = 0
 
     def clone(self) -> Blueprint[_T_cov_def]:
         """Make a copy of this Blueprint."""
-        return Blueprint(self.target).apply(self)
+        cloned = Blueprint(self.target).apply(self)
+        cloned._mud_read_layers = list(self._mud_read_layers)
+        cloned._mud_frozen_paths = set(self._mud_frozen_paths)
+        cloned._mud_frozen_prefixes = set(self._mud_frozen_prefixes)
+        cloned._mud_read_index = self._mud_read_index
+        cloned._mud_write_index = self._mud_write_index
+        return cloned
 
     def apply(
         self,
@@ -265,6 +276,28 @@ class Blueprint(Generic[_T_cov_def]):
                     )
             for layer in values._arg_map._layers:
                 self._arg_map.add_layer(layer.nest_subpath(subpath))
+            if values._mud_read_layers or values._mud_frozen_paths:
+                for layer in values._mud_read_layers:
+                    paths = [
+                        join_arg_path(subpath, path) if subpath else path for path in layer.paths
+                    ]
+                    self._mud_read_layers.append(
+                        type(layer)(paths=tuple(paths), layer_name=layer.layer_name)
+                    )
+                for path in values._mud_frozen_paths:
+                    nested_path = join_arg_path(subpath, path) if subpath else path
+                    self._mud_frozen_paths.add(nested_path)
+                self._mud_frozen_prefixes = set()
+                for path in self._mud_frozen_paths:
+                    if path == "":
+                        self._mud_frozen_prefixes.add("")
+                        continue
+                    prefix = ""
+                    for part in path.split("."):
+                        prefix = part if not prefix else f"{prefix}.{part}"
+                        self._mud_frozen_prefixes.add(prefix)
+                self._mud_read_index = len(self._mud_read_layers)
+            self._mud_write_index = max(self._mud_write_index, values._mud_write_index)
         else:
             raise TypeError(f"Expected dict or Blueprint, got {type(values)}")
 
@@ -371,6 +404,12 @@ class Blueprint(Generic[_T_cov_def]):
         self.apply_from_argv(argv, allow_hyphens=allow_hyphens)
 
         return self.make()
+
+    def mud(self, *, thaw: bool = False) -> _T_cov_def:
+        """Return a mutable view over this Blueprint."""
+        from chz.blueprint._mud import make_mud_view
+
+        return make_mud_view(self, thaw=thaw)
 
     def get_help(self, *, color: bool = False) -> str:
         """Get help text for this Blueprint.
