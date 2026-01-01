@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar, overload
+from typing import TYPE_CHECKING, Any, Callable, Mapping, TypeVar, cast, overload
 
 if TYPE_CHECKING:
     from frozendict import frozendict
@@ -73,5 +73,5 @@ class freeze_dict(Munger):
         from frozendict import frozendict
 
         if value is not None and not isinstance(value, frozendict):
-            return frozendict[_K, _V](value)  # pyright: ignore[reportUnknownArgumentType]
+            return cast("frozendict[_K, _V]", frozendict(value))
         return value

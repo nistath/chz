@@ -61,7 +61,7 @@ if TYPE_CHECKING:
 
     from typing_extensions import dataclass_transform
 
-    @dataclass_transform(kw_only_default=True, frozen_default=True, field_specifiers=(field,))
+    @dataclass_transform(kw_only_default=True, frozen_default=False, field_specifiers=(field,))
     @overload
     def chz(version: str = ..., typecheck: bool = ...) -> Callable[[type], type]: ...
 
