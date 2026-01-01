@@ -201,17 +201,16 @@ class MudView(Generic[_T]):
         # Read from Blueprint
         self._mv_blueprint._arg_map.consolidate()
         found = self._mv_blueprint._arg_map.get_kv(full_path)
-        value = found.value if found else MISSING
-
-        # Mark frozen
-        self._mv_frozen.add(full_path)
 
         field_type = field.final_type
 
-        # Handle nested chz classes - return nested MudView
+        # Handle nested chz classes - always return nested MudView
+        # (even if not set, allows setting nested fields)
         if _is_chz_type(field_type):
             chz_class = _get_chz_class(field_type)
             if chz_class is not None:
+                # Mark frozen before creating nested view
+                self._mv_frozen.add(full_path)
                 nested = MudView(
                     blueprint=self._mv_blueprint,
                     target_class=chz_class,
@@ -221,7 +220,25 @@ class MudView(Generic[_T]):
                 self._mv_nested[logical] = nested
                 return nested
 
-        return value
+        # For non-nested fields, check if set or has default
+        if found is None:
+            # Check for default value
+            if field._default is not MISSING:
+                self._mv_frozen.add(full_path)
+                return field._default
+            elif field._default_factory is not MISSING:
+                self._mv_frozen.add(full_path)
+                return field._default_factory()
+            else:
+                raise AttributeError(
+                    f"Field '{name}' has not been set and has no default. "
+                    f"Set it first with `mud.{name} = value`."
+                )
+
+        # Mark frozen
+        self._mv_frozen.add(full_path)
+
+        return found.value
 
     def _evaluate_init_property(self, name: str, prop: chz_init_property) -> Any:
         """Lazily evaluate and cache an init_property."""
