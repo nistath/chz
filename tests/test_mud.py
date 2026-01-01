@@ -254,6 +254,47 @@ def test_error_on_unknown_field():
         _ = m.unknown_field
 
 
+def test_error_on_unset_field():
+    """Test that accessing unset fields raises AttributeError."""
+
+    @chz.chz
+    class Config:
+        a: int
+        b: str = "default"
+
+    bp = chz.Blueprint(Config)
+    m = bp.mud()
+
+    # Field with default returns default
+    assert m.b == "default"
+
+    # Accessing unset required field raises
+    with pytest.raises(AttributeError, match="has not been set"):
+        _ = m.a
+
+    # After setting, it works
+    m.a = 42
+    assert m.a == 42
+
+
+def test_default_factory():
+    """Test that default_factory works correctly."""
+
+    @chz.chz
+    class Config:
+        items: list[int] = chz.field(default_factory=list)
+
+    bp = chz.Blueprint(Config)
+    m = bp.mud()
+
+    # Should return a new list from factory
+    items = m.items
+    assert items == []
+
+    # Each call should return a new list (factory is called each time before freeze)
+    # But reading freezes, so we can't modify via mud anymore
+
+
 def test_optional_field():
     """Test handling of Optional[ChzClass] fields."""
 
