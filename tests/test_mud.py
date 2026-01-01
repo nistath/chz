@@ -492,3 +492,41 @@ def test_frozen_shared_across_mud_calls():
     # Both should fail to modify 'a'
     with pytest.raises(FrozenPropertyError):
         m2.a = 2
+
+
+def test_clone_preserves_frozen_state():
+    """Test that Blueprint.clone() preserves frozen state."""
+
+    @chz.chz
+    class Config:
+        a: int
+        b: str = "default"
+
+    bp = chz.Blueprint(Config)
+    m = bp.mud()
+    m.a = 1
+    m.b = "hello"
+    _ = m.a  # Freeze 'a'
+
+    # Clone the blueprint
+    bp2 = bp.clone()
+
+    # Frozen state should be preserved
+    assert bp2.is_mud_frozen("a")
+    assert not bp2.is_mud_frozen("b")
+
+    # Can't modify frozen field in clone
+    m2 = bp2.mud()
+    with pytest.raises(FrozenPropertyError):
+        m2.a = 2
+
+    # Can still modify non-frozen field
+    m2.b = "world"
+
+    # Both blueprints should make valid configs
+    config1 = bp.make()
+    config2 = bp2.make()
+    assert config1.a == 1
+    assert config1.b == "hello"
+    assert config2.a == 1
+    assert config2.b == "world"

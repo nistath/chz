@@ -237,8 +237,10 @@ class Blueprint(Generic[_T_cov_def]):
         self._mud_frozen: set[str] = set()
 
     def clone(self) -> Blueprint[_T_cov_def]:
-        """Make a copy of this Blueprint."""
-        return Blueprint(self.target).apply(self)
+        """Make a copy of this Blueprint, including frozen state."""
+        cloned = Blueprint(self.target).apply(self)
+        cloned._mud_frozen = set(self._mud_frozen)
+        return cloned
 
     def apply(
         self,
@@ -269,6 +271,10 @@ class Blueprint(Generic[_T_cov_def]):
                     )
             for layer in values._arg_map._layers:
                 self._arg_map.add_layer(layer.nest_subpath(subpath))
+            # Merge frozen state (with subpath adjustment if needed)
+            for path in values._mud_frozen:
+                frozen_path = join_arg_path(subpath, path) if subpath else path
+                self._mud_frozen.add(frozen_path)
         else:
             raise TypeError(f"Expected dict or Blueprint, got {type(values)}")
 

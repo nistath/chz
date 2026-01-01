@@ -84,6 +84,9 @@ class ArgumentMap:
         self.consolidated = False
 
     def consolidate(self) -> None:
+        if self.consolidated:
+            return
+
         self.consolidated_qualified = {}
         for i, layer in enumerate(self._layers):
             for key, value in layer.qualified.items():
