@@ -2,7 +2,7 @@
 import pytest
 
 import chz
-from chz.mud import FrozenPropertyError, MudView
+from chz.mud import FrozenPropertyError
 
 
 def test_blueprint_mud_basic():
@@ -15,8 +15,6 @@ def test_blueprint_mud_basic():
 
     bp = chz.Blueprint(Config)
     m = bp.mud()
-
-    assert isinstance(m, MudView)
 
     m.name = "hello"
     m.count = 42
@@ -55,7 +53,7 @@ def test_blueprint_mud_read_freezing():
 
 
 def test_is_frozen():
-    """Test the is_frozen method."""
+    """Test the is_mud_frozen method on Blueprint."""
 
     @chz.chz
     class Config:
@@ -66,17 +64,17 @@ def test_is_frozen():
     m = bp.mud()
     m.a = 1
 
-    assert not m.is_frozen("a")
-    assert not m.is_frozen("b")
+    assert not bp.is_mud_frozen("a")
+    assert not bp.is_mud_frozen("b")
 
     _ = m.a
 
-    assert m.is_frozen("a")
-    assert not m.is_frozen("b")
+    assert bp.is_mud_frozen("a")
+    assert not bp.is_mud_frozen("b")
 
 
 def test_get_frozen_fields():
-    """Test getting all frozen fields."""
+    """Test getting all frozen fields via Blueprint."""
 
     @chz.chz
     class Config:
@@ -90,12 +88,12 @@ def test_get_frozen_fields():
     m.b = "test"
     m.c = 2.0
 
-    assert m.get_frozen_fields() == set()
+    assert bp.get_mud_frozen_fields() == set()
 
     _ = m.a
     _ = m.c
 
-    assert m.get_frozen_fields() == {"a", "c"}
+    assert bp.get_mud_frozen_fields() == {"a", "c"}
 
 
 def test_nested_mud():
@@ -309,9 +307,9 @@ def test_optional_field():
     bp = chz.Blueprint(Outer)
     m = bp.mud()
 
-    # Access the optional field - should create nested mud
+    # Access the optional field - should create nested mud view
     inner = m.inner
-    assert isinstance(inner, MudView)
+    # Can set nested fields through the view
     inner.x = 42
 
     result = bp.make()
@@ -357,8 +355,8 @@ def test_mud_method():
 
     assert m.sum() == 8
     # x and y are now frozen (accessed by method)
-    assert m.is_frozen("x")
-    assert m.is_frozen("y")
+    assert bp.is_mud_frozen("x")
+    assert bp.is_mud_frozen("y")
 
 
 def test_mud_property():
@@ -380,7 +378,7 @@ def test_mud_property():
 
 
 def test_mud_init_property_lazy():
-    """Test init_property is lazy on mud."""
+    """Test init_property is lazy on mud (evaluated fresh each access - stateless design)."""
     call_count = 0
 
     @chz.chz
@@ -404,12 +402,13 @@ def test_mud_init_property_lazy():
     assert m.base == 10
     assert call_count == 1
 
-    # Second access uses cache
+    # Second access re-evaluates (stateless - no caching)
     assert m.base == 10
-    assert call_count == 1
+    assert call_count == 2
 
     # X_base is frozen (accessed by init_property)
-    assert m.is_frozen("X_base")
+    # Note: frozen paths use logical field names, so "X_base" becomes "base"
+    assert bp.is_mud_frozen("base")
 
 
 def test_mud_method_uses_init_property():
@@ -447,3 +446,49 @@ def test_repr():
     repr_str = repr(m)
     assert "MudView" in repr_str
     assert "Config" in repr_str
+
+
+def test_external_blueprint_modification():
+    """Test that external Blueprint.apply() works correctly with mud (stateless design)."""
+
+    @chz.chz
+    class Config:
+        a: int
+        b: str = "default"
+
+    bp = chz.Blueprint(Config)
+    m = bp.mud()
+    m.a = 1
+
+    # External modification via Blueprint.apply()
+    bp.apply({"b": "external"})
+
+    # MudView should see the updated value (stateless - reads from Blueprint)
+    assert m.b == "external"
+
+    config = bp.make()
+    assert config.a == 1
+    assert config.b == "external"
+
+
+def test_frozen_shared_across_mud_calls():
+    """Test that frozen state is shared across all mud() calls."""
+
+    @chz.chz
+    class Config:
+        a: int
+        b: str = "default"
+
+    bp = chz.Blueprint(Config)
+    m1 = bp.mud()
+    m2 = bp.mud()  # Same view (singleton)
+
+    m1.a = 1
+    _ = m1.a  # Freeze 'a'
+
+    # Frozen state lives on Blueprint
+    assert bp.is_mud_frozen("a")
+
+    # Both should fail to modify 'a'
+    with pytest.raises(FrozenPropertyError):
+        m2.a = 2

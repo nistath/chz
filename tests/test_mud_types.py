@@ -2,9 +2,11 @@
 # This file is checked by pyright to verify type annotations are correct
 #
 # Run: uv run pyright tests/test_mud_types.py
+#
+# Note: Blueprint.mud() uses TYPE_CHECKING trick - returns T for type checker,
+# MudView[T] at runtime. This gives field autocomplete while hiding MudView methods.
 
 import chz
-from chz.mud import MudView
 
 
 @chz.chz
@@ -20,40 +22,44 @@ class NestedConfig:
 
 
 def test_blueprint_mud_types() -> None:
-    """Test that Blueprint.mud() returns MudView[T] with proper typing."""
+    """Test that Blueprint.mud() returns T for type checker (TYPE_CHECKING trick)."""
     bp = chz.Blueprint(TypedConfig)
-    m: MudView[TypedConfig] = bp.mud()
+    # Type checker sees m as TypedConfig (for field autocomplete)
+    m = bp.mud()
 
-    # Field assignment (type checker sees these as field assignments)
-    m.name = "hello"  # type: ignore[assignment]  # Dynamic assignment
-    m.count = 42  # type: ignore[assignment]
+    # Field assignment - needs type: ignore because chz classes are frozen
+    # The trade-off: autocomplete works, but assignment errors need suppression
+    m.name = "hello"  # type: ignore[misc]
+    m.count = 42  # type: ignore[misc]
 
     # make() returns the correct type
     result: TypedConfig = bp.make()
     assert result.name == "hello"
 
 
-def test_mudview_methods_typed() -> None:
-    """Test that MudView methods are properly typed."""
+def test_blueprint_frozen_methods() -> None:
+    """Test that frozen state methods are on Blueprint, not MudView."""
     bp = chz.Blueprint(TypedConfig)
     m = bp.mud()
+    m.name = "hello"  # type: ignore[misc]
 
-    # is_frozen returns bool
-    frozen: bool = m.is_frozen("name")
+    _ = m.name  # Freeze it
 
-    # get_frozen_fields returns set[str]
-    fields: set[str] = m.get_frozen_fields()
+    # Frozen state methods are on Blueprint (properly typed)
+    frozen: bool = bp.is_mud_frozen("name")
+    fields: set[str] = bp.get_mud_frozen_fields()
 
-    _ = (frozen, fields)
+    assert frozen is True
+    assert "name" in fields
 
 
 def test_nested_mud_types() -> None:
     """Test type checking for nested chz fields."""
     bp = chz.Blueprint(NestedConfig)
     m = bp.mud()
-    m.label = "test"  # type: ignore[assignment]
+    m.label = "test"  # type: ignore[misc]
 
-    # Access nested field - returns MudView at runtime
+    # Access nested field - type checker sees TypedConfig
     inner = m.inner
     inner.name = "nested"  # type: ignore[misc]
     inner.count = 5  # type: ignore[misc]
@@ -62,11 +68,7 @@ def test_nested_mud_types() -> None:
     assert result.inner.name == "nested"
 
 
-# NOTE: Field assignment type checking has limitations due to dynamic __getattr__.
-# The following would NOT be caught as errors by pyright:
-#
-# m.name = 123      # Wrong type - NOT caught by pyright
-# m.count = "hello" # Wrong type - NOT caught by pyright
-#
-# This is a fundamental limitation of Python's type system with dynamic __getattr__.
-# Runtime type checking happens via chz's validators when make() is called.
+# NOTE: With TYPE_CHECKING trick:
+# - Field access has proper autocomplete (type checker sees T)
+# - Field assignment needs type: ignore (chz classes are frozen)
+# - Frozen state methods are on Blueprint, not MudView (properly typed)

@@ -21,7 +21,7 @@ from .data_model import (
     traverse,
 )
 from .field import field
-from .mud import FrozenPropertyError, MudView
+from .mud import FrozenPropertyError
 from .validators import validate
 
 __all__ = [
@@ -43,8 +43,7 @@ __all__ = [
     "validators",
     "mungers",
     "Castable",
-    # mud - mutable mode (Blueprint.mud() returns MudView)
-    "MudView",
+    # mud - mutable mode (Blueprint.mud())
     "FrozenPropertyError",
     # are the following public?
     "blueprint",

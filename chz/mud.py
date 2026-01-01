@@ -4,13 +4,13 @@ import functools
 from typing import (
     TYPE_CHECKING,
     Any,
+    Callable,
     Generic,
     TypeVar,
+    cast,
     get_args,
     get_origin,
 )
-
-from typing_extensions import dataclass_transform
 
 import chz
 from chz.blueprint._argmap import join_arg_path
@@ -58,14 +58,14 @@ def _get_chz_class(tp: Any) -> type | None:
     return None
 
 
-@dataclass_transform(frozen_default=False, kw_only_default=True, field_specifiers=(chz.field,))
 class MudView(Generic[_T]):
     """Mutable view of a Blueprint that acts like a chz instance.
 
-    MudView provides chz-instance-like access while editing the Blueprint:
+    MudView is a thin stateless wrapper - all state lives on Blueprint.
     - Writes immediately apply to the Blueprint
     - Reads consolidate the Blueprint and freeze the accessed field
     - Methods and properties work by binding to MudView
+    - Nested MudViews are created fresh on each access (stateless)
 
     Example:
         bp = Blueprint(Config)
@@ -81,9 +81,8 @@ class MudView(Generic[_T]):
         "_mv_target_class",
         "_mv_fields",
         "_mv_path",
-        "_mv_frozen",
-        "_mv_init_property_cache",
-        "_mv_nested",
+        # Note: _mv_frozen is a property that accesses Blueprint._mud_frozen
+        # All other caches removed - stateless design
     )
 
     def __init__(
@@ -91,15 +90,16 @@ class MudView(Generic[_T]):
         blueprint: Blueprint[_T],
         target_class: type[_T],
         path: str = "",
-        frozen: set[str] | None = None,
     ) -> None:
         object.__setattr__(self, "_mv_blueprint", blueprint)
         object.__setattr__(self, "_mv_target_class", target_class)
         object.__setattr__(self, "_mv_fields", chz.chz_fields(target_class))
         object.__setattr__(self, "_mv_path", path)
-        object.__setattr__(self, "_mv_frozen", frozen if frozen is not None else set())
-        object.__setattr__(self, "_mv_init_property_cache", {})
-        object.__setattr__(self, "_mv_nested", {})
+
+    @property
+    def _mv_frozen(self) -> set[str]:
+        """Access the frozen set stored on Blueprint."""
+        return self._mv_blueprint._mud_frozen
 
     def _get_field_by_logical_name(self, name: str) -> Field | None:
         """Get field by logical name (handles X_ prefix)."""
@@ -141,9 +141,6 @@ class MudView(Generic[_T]):
         # Apply immediately to Blueprint
         self._mv_blueprint.apply({full_path: value}, layer_name="mud")
 
-        # Clear nested view if exists
-        self._mv_nested.pop(logical, None)
-
     def __getattr__(self, name: str) -> Any:
         # Handle internal attributes
         if name.startswith("_mv_"):
@@ -165,13 +162,8 @@ class MudView(Generic[_T]):
                     return attr.fget(self)
 
                 elif isinstance(attr, functools.cached_property):
-                    # Treat like init_property - cache result
-                    cache = self._mv_init_property_cache
-                    if name in cache:
-                        return cache[name]
-                    result = attr.func(self)
-                    cache[name] = result
-                    return result
+                    # Evaluate fresh each time (stateless design)
+                    return attr.func(self)
 
                 elif callable(attr) and not isinstance(attr, type):
                     # Regular method - bind to this MudView
@@ -194,31 +186,25 @@ class MudView(Generic[_T]):
         logical = field.logical_name
         full_path = self._full_path(logical)
 
-        # Check if we already have a nested view
-        if logical in self._mv_nested:
-            return self._mv_nested[logical]
-
         # Read from Blueprint
         self._mv_blueprint._arg_map.consolidate()
         found = self._mv_blueprint._arg_map.get_kv(full_path)
 
         field_type = field.final_type
 
-        # Handle nested chz classes - always return nested MudView
-        # (even if not set, allows setting nested fields)
+        # Handle nested chz classes - always return fresh nested MudView
+        # (stateless design - created on each access)
         if _is_chz_type(field_type):
             chz_class = _get_chz_class(field_type)
             if chz_class is not None:
                 # Mark frozen before creating nested view
                 self._mv_frozen.add(full_path)
-                nested = MudView(
+                # Create fresh MudView - shares frozen set via Blueprint
+                return MudView(
                     blueprint=self._mv_blueprint,
                     target_class=chz_class,
                     path=full_path,
-                    frozen=self._mv_frozen,  # Share frozen set
                 )
-                self._mv_nested[logical] = nested
-                return nested
 
         # For non-nested fields, check if set or has default
         if found is None:
@@ -228,7 +214,8 @@ class MudView(Generic[_T]):
                 return field._default
             elif field._default_factory is not MISSING:
                 self._mv_frozen.add(full_path)
-                return field._default_factory()
+                factory = cast(Callable[[], Any], field._default_factory)
+                return factory()
             else:
                 raise AttributeError(
                     f"Field '{name}' has not been set and has no default. "
@@ -241,29 +228,9 @@ class MudView(Generic[_T]):
         return found.value
 
     def _evaluate_init_property(self, name: str, prop: chz_init_property) -> Any:
-        """Lazily evaluate and cache an init_property."""
-        cache = self._mv_init_property_cache
-        if name in cache:
-            return cache[name]
-
+        """Evaluate an init_property (fresh each time - stateless design)."""
         # Evaluate: accessing fields via self freezes them
-        result = prop.func(self)
-        cache[name] = result
-        return result
-
-    def is_frozen(self, name: str) -> bool:
-        """Check if a field has been read (frozen)."""
-        field = self._get_field_by_logical_name(name)
-        if field is None:
-            raise AttributeError(
-                f"'{self._mv_target_class.__qualname__}' has no field '{name}'"
-            )
-        full_path = self._full_path(field.logical_name)
-        return full_path in self._mv_frozen
-
-    def get_frozen_fields(self) -> set[str]:
-        """Return set of all frozen field paths."""
-        return set(self._mv_frozen)
+        return prop.func(self)
 
     def __repr__(self) -> str:
         path_str = f" at '{self._mv_path}'" if self._mv_path else ""

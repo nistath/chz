@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, Callable, Final, Generic, Mapping, Protoc
 from typing_extensions import TypeVar
 
 if TYPE_CHECKING:
-    from chz.mud import MudView
+    pass  # MudView imported at runtime only
 
 import chz
 from chz.blueprint._argmap import ArgumentMap, Layer, _FoundArgument, join_arg_path
@@ -234,6 +234,7 @@ class Blueprint(Generic[_T_cov_def]):
         )
 
         self._arg_map = ArgumentMap([])
+        self._mud_frozen: set[str] = set()
 
     def clone(self) -> Blueprint[_T_cov_def]:
         """Make a copy of this Blueprint."""
@@ -360,27 +361,36 @@ class Blueprint(Generic[_T_cov_def]):
         r = self._make_lazy()
         return self._make_from_make_result(r)
 
-    def mud(self) -> "MudView[_T_cov_def]":
-        """Return a mutable view of this Blueprint.
+    if TYPE_CHECKING:
 
-        The view acts like a chz instance but is mutable. Writes are
-        immediately applied to the Blueprint. Reads freeze values.
+        def mud(self) -> _T_cov_def:
+            """Return a mutable view of this Blueprint.
 
-        Example:
-            bp = Blueprint(Config)
-            m = bp.mud()
-            m.name = "hello"
-            m.model.n_layers = 10
-            print(m.name)  # Freezes 'name'
-            config = bp.make()  # Includes mud writes
-        """
-        from chz.mud import MudView
+            The view acts like a chz instance but is mutable. Writes are
+            immediately applied to the Blueprint. Reads freeze values.
 
-        # Singleton: return same view on repeated calls
-        if not hasattr(self, "_mud_view"):
-            target_class = self._get_target_class()
-            self._mud_view: MudView[_T_cov_def] = MudView(self, target_class, "")
-        return self._mud_view
+            Example:
+                bp = Blueprint(Config)
+                m = bp.mud()
+                m.name = "hello"
+                m.model.n_layers = 10
+                print(m.name)  # Freezes 'name'
+                config = bp.make()  # Includes mud writes
+            """
+            ...
+
+    else:
+
+        def mud(self):
+            """Return a mutable view of this Blueprint."""
+            from chz.mud import MudView
+
+            # Always create fresh MudView (stateless, so caching optional)
+            # We still cache for identity/singleton semantics
+            if not hasattr(self, "_mud_view"):
+                target_class = self._get_target_class()
+                self._mud_view = MudView(self, target_class, "")
+            return self._mud_view
 
     def _get_target_class(self) -> type[_T_cov_def]:
         """Extract the target chz class from this Blueprint."""
@@ -404,6 +414,14 @@ class Blueprint(Generic[_T_cov_def]):
                 "Blueprint target must be a chz class for mud()."
             )
         return target  # type: ignore[return-value]
+
+    def is_mud_frozen(self, path: str) -> bool:
+        """Check if a field path has been read via mud() and is now frozen."""
+        return path in self._mud_frozen
+
+    def get_mud_frozen_fields(self) -> set[str]:
+        """Return set of all field paths frozen via mud()."""
+        return set(self._mud_frozen)
 
     def make_from_argv(
         self, argv: list[str] | None = None, allow_hyphens: bool = False
