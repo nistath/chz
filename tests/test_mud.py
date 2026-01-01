@@ -530,3 +530,114 @@ def test_clone_preserves_frozen_state():
     assert config1.b == "hello"
     assert config2.a == 1
     assert config2.b == "world"
+
+
+def test_mud_assign_instance_before_freeze():
+    """Test that assigning a chz instance works before freezing."""
+
+    @chz.chz
+    class Inner:
+        x: int
+        y: str = "default"
+
+    @chz.chz
+    class Outer:
+        inner: Inner
+
+    bp = chz.Blueprint(Outer)
+    m = bp.mud()
+
+    # Assign a complete instance (before any reads)
+    m.inner = Inner(x=42, y="assigned")
+
+    result = bp.make()
+    assert result.inner.x == 42
+    assert result.inner.y == "assigned"
+
+
+def test_mud_polymorphic_assign_child_instance():
+    """Test assigning a child instance to a polymorphic field."""
+
+    @chz.chz
+    class Parent:
+        x: int
+
+    @chz.chz
+    class Child(Parent):
+        y: int
+
+    @chz.chz
+    class Main:
+        field: Parent = chz.field(blueprint_unspecified=Child)
+
+    bp = chz.Blueprint(Main)
+    m = bp.mud()
+
+    # Assign a Child instance to a Parent-typed field
+    m.field = Child(x=10, y=20)
+
+    result = bp.make()
+    assert isinstance(result.field, Child)
+    assert result.field.x == 10
+    assert result.field.y == 20
+
+
+def test_mud_polymorphic_subcomponents():
+    """Test that subcomponent access works for polymorphic fields."""
+
+    @chz.chz
+    class Parent:
+        x: int
+
+    @chz.chz
+    class Child(Parent):
+        y: int = 0
+
+    @chz.chz
+    class Main:
+        field: Parent = chz.field(blueprint_unspecified=Child)
+
+    bp = chz.Blueprint(Main)
+    m = bp.mud()
+
+    # Setting parent field via MudView works
+    m.field.x = 10
+
+    # Blueprint constructs Child at make() time
+    result = bp.make()
+    assert isinstance(result.field, Child)
+    assert result.field.x == 10
+    assert result.field.y == 0  # default
+
+
+def test_mud_polymorphic_child_only_field_error():
+    """Document limitation: child-only fields raise AttributeError via MudView."""
+
+    @chz.chz
+    class Parent:
+        x: int
+
+    @chz.chz
+    class Child(Parent):
+        y: int
+
+    @chz.chz
+    class Main:
+        field: Parent = chz.field(blueprint_unspecified=Child)
+
+    bp = chz.Blueprint(Main)
+    m = bp.mud()
+
+    # MudView thinks field is Parent, so y is not accessible
+    with pytest.raises(AttributeError, match="has no field"):
+        m.field.y = 20
+
+    # Note: Accessing m.field above freezes "field", so we need a fresh Blueprint
+    # to demonstrate the workaround
+    bp2 = chz.Blueprint(Main)
+    m2 = bp2.mud()
+
+    # Workaround: assign a complete instance
+    m2.field = Child(x=10, y=20)
+    result = bp2.make()
+    assert result.field.y == 20

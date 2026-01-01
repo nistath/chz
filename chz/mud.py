@@ -74,6 +74,26 @@ class MudView(Generic[_T]):
         m.model.n_layers = 10
         print(m.name)  # Freezes 'name'
         config = bp.make()
+
+    Freezing Semantics:
+        Reading a field freezes it - subsequent writes raise FrozenPropertyError.
+        For nested chz fields, accessing the field freezes the *parent path*, not
+        the nested fields. You can still modify nested fields through the returned
+        MudView.
+
+        Example:
+            m.inner        # Freezes "inner"
+            m.inner.x = 5  # Still works - sets "inner.x"
+            m.inner = X()  # Raises FrozenPropertyError
+
+        The frozen set is stored on the Blueprint (not MudView) and is shared
+        across all mud() calls on the same Blueprint. Use bp.is_mud_frozen(path)
+        and bp.get_mud_frozen_fields() to inspect frozen state.
+
+    Polymorphic Fields:
+        For fields with blueprint_unspecified or meta_factory, MudView uses the
+        declared base type. Child-only fields are not accessible via MudView.
+        Workaround: assign a complete instance (e.g., m.field = Child(x=1, y=2)).
     """
 
     __slots__ = (
