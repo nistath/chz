@@ -73,16 +73,25 @@ class Castable(SpecialArg):
         return self.value == other.value
 
 
-class Reference(SpecialArg):
-    """A reference to another parameter in a Blueprint."""
+if typing.TYPE_CHECKING:
+    Reference: typing.TypeAlias = Any
 
-    def __init__(self, ref: str) -> None:
-        if "..." in ref:
-            raise ValueError("Cannot use wildcard as a reference target")
-        self.ref = ref
+    class _ReferenceRuntime(SpecialArg):
+        ref: str
+else:
 
-    def __repr__(self) -> str:
-        return f"Reference({self.ref!r})"
+    class Reference(SpecialArg):
+        """A reference to another parameter in a Blueprint."""
+
+        def __init__(self, ref: str) -> None:
+            if "..." in ref:
+                raise ValueError("Cannot use wildcard as a reference target")
+            self.ref = ref
+
+        def __repr__(self) -> str:
+            return f"Reference({self.ref!r})"
+
+    _ReferenceRuntime = Reference
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -170,7 +179,7 @@ def _found_arg_desc(
     else:
         if isinstance(found_arg.value, Castable):
             found_arg_str = repr(found_arg.value.value)[1:-1]
-        elif isinstance(found_arg.value, Reference):
+        elif isinstance(found_arg.value, _ReferenceRuntime):
             found_arg_str = f"@={found_arg.value.ref}"
         elif isinstance(found_arg.value, Computed):
             arg_str = ", ".join(f"{k}@={v.ref}" for k, v in found_arg.value.src.items())
@@ -1189,7 +1198,7 @@ def _construct_param(
             return {param_path: Value(spec)}
 
     # ..or if it's a Reference to some other parameter
-    if isinstance(spec, Reference):
+    if isinstance(spec, _ReferenceRuntime):
         if spec.ref == param_path:
             # If it's a self reference, treat it as if it were unspecified
             value_mapping = _construct_unspecified_param(
@@ -1243,7 +1252,7 @@ def _construct_param(
                 pass
 
     # ..or if it's a Reference to some other parameter
-    if isinstance(spec, Reference):
+    if isinstance(spec, _ReferenceRuntime):
         if spec.ref == param_path:
             # If it's a self reference, treat it as if it were unspecified
             value_mapping = _construct_unspecified_param(
