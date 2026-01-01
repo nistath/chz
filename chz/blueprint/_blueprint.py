@@ -373,7 +373,8 @@ class Blueprint(Generic[_T_cov_def]):
             """Return a mutable view of this Blueprint.
 
             The view acts like a chz instance but is mutable. Writes are
-            immediately applied to the Blueprint. Reads freeze values.
+            immediately applied to the Blueprint. Reads freeze values,
+            preventing further writes to that field.
 
             Example:
                 bp = Blueprint(Config)
@@ -382,6 +383,19 @@ class Blueprint(Generic[_T_cov_def]):
                 m.model.n_layers = 10
                 print(m.name)  # Freezes 'name'
                 config = bp.make()  # Includes mud writes
+
+            Freezing:
+                Once a field is read, it cannot be written again. For nested
+                fields, accessing m.inner freezes "inner" but you can still
+                set m.inner.x (which sets "inner.x", not "inner").
+
+            Companion Methods:
+                - bp.is_mud_frozen(path) - Check if a path is frozen
+                - bp.get_mud_frozen_fields() - Get all frozen paths
+
+            Returns:
+                A MudView that appears as type T for autocompletion. Fields
+                can be read and written via attribute access.
             """
             ...
 
