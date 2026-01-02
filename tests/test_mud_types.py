@@ -3,17 +3,9 @@
 #
 # Run: uv run pyright tests/test_mud_types.py
 #
-# Type Checking Trade-offs:
-#   Blueprint.mud() returns T for type checkers (MudView[T] at runtime).
-#   This gives field autocomplete but requires # type: ignore[misc] for assignments
-#   because chz classes are frozen dataclasses.
-#
-#   Alternative approaches were considered but have worse trade-offs:
-#   - Return MudView[T]: Loses field types (everything becomes Any)
-#   - Generate Protocols: Not supported at type-check time
-#   - Intersection types: Not supported in Python
-#
-#   The current approach prioritizes IDE autocomplete over assignment type safety.
+# Note: Blueprint.mud() returns T for type checkers (MudView[T] at runtime).
+# chz uses frozen_default=False in @dataclass_transform so assignments are allowed
+# by the type checker, even though chz instances are frozen at runtime.
 
 import chz
 
@@ -31,15 +23,14 @@ class NestedConfig:
 
 
 def test_blueprint_mud_types() -> None:
-    """Test that Blueprint.mud() returns T for type checker (TYPE_CHECKING trick)."""
+    """Test that Blueprint.mud() returns T for type checker."""
     bp = chz.Blueprint(TypedConfig)
     # Type checker sees m as TypedConfig (for field autocomplete)
     m = bp.mud()
 
-    # Field assignment - needs type: ignore because chz classes are frozen
-    # The trade-off: autocomplete works, but assignment errors need suppression
-    m.name = "hello"  # type: ignore[misc]
-    m.count = 42  # type: ignore[misc]
+    # Field assignment works without type: ignore
+    m.name = "hello"
+    m.count = 42
 
     # make() returns the correct type
     result: TypedConfig = bp.make()
@@ -50,7 +41,7 @@ def test_blueprint_frozen_methods() -> None:
     """Test that frozen state methods are on Blueprint, not MudView."""
     bp = chz.Blueprint(TypedConfig)
     m = bp.mud()
-    m.name = "hello"  # type: ignore[misc]
+    m.name = "hello"
 
     _ = m.name  # Freeze it
 
@@ -66,18 +57,12 @@ def test_nested_mud_types() -> None:
     """Test type checking for nested chz fields."""
     bp = chz.Blueprint(NestedConfig)
     m = bp.mud()
-    m.label = "test"  # type: ignore[misc]
+    m.label = "test"
 
     # Access nested field - type checker sees TypedConfig
     inner = m.inner
-    inner.name = "nested"  # type: ignore[misc]
-    inner.count = 5  # type: ignore[misc]
+    inner.name = "nested"
+    inner.count = 5
 
     result = bp.make()
     assert result.inner.name == "nested"
-
-
-# NOTE: With TYPE_CHECKING trick:
-# - Field access has proper autocomplete (type checker sees T)
-# - Field assignment needs type: ignore (chz classes are frozen)
-# - Frozen state methods are on Blueprint, not MudView (properly typed)
