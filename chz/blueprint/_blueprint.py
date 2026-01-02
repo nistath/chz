@@ -420,8 +420,10 @@ class Blueprint(Generic[_T_cov_def]):
         """Return a mutable view over this Blueprint.
 
         Assignments append Blueprint layers, and reads freeze the accessed path (and any
-        dependencies) so it cannot be rewritten later. Use thaw=True as an escape hatch to
-        disable freezing; this can invalidate other views over the same Blueprint.
+        dependencies) so it cannot be rewritten later. `init_property` and `cached_property`
+        behave like regular properties (no caching) to avoid stale values if a thawed view
+        mutates the Blueprint. Use thaw=True as an escape hatch to disable freezing; this can
+        invalidate other views over the same Blueprint.
         """
         from chz.blueprint._mud import make_mud_view
 

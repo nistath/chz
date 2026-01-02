@@ -95,6 +95,8 @@ child.b = 2
 Notes and limitations:
 - Methods and properties on the original class work on mud views, but they can read unset fields,
   which raises MissingBlueprintArg, and their reads will freeze the paths they touch.
+- `init_property` and `functools.cached_property` act like regular properties in mud (no caching),
+  which avoids stale values if a thawed view mutates the Blueprint.
 - When you access a polymorphic field through the parent view, it is typed as the base class.
   Use `mud_view` if you need a view typed as the concrete subclass.
 - `thaw=True` disables freezing, which is useful for exploration but can surprise other views on
