@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 import chz
@@ -50,6 +52,97 @@ def test_blueprint_mud_nested_view():
 
     with pytest.raises(chz.data_model.FrozenInstanceError):
         view.child.x = 2
+
+
+def test_blueprint_mud_polymorphic_default_subclass():
+    @chz.chz
+    class Base:
+        a: int
+
+    @chz.chz
+    class Child(Base):
+        b: int
+
+    @chz.chz
+    class Parent:
+        child: Base = chz.field(
+            meta_factory=chz.factories.subclass(Base, default_cls=Child)
+        )
+
+    view = chz.Blueprint(Parent).mud()
+    child = cast(Child, view.child)
+    child.a = 1
+    child.b = 2
+    assert child.a == 1
+    assert child.b == 2
+
+
+def test_blueprint_mud_polymorphic_select_subclass():
+    @chz.chz
+    class Base:
+        a: int
+
+    @chz.chz
+    class Child(Base):
+        b: int
+
+    @chz.chz
+    class Parent:
+        child: Base = chz.field(
+            meta_factory=chz.factories.subclass(Base, default_cls=Base)
+        )
+
+    bp = chz.Blueprint(Parent)
+    view = bp.mud()
+    with pytest.raises(chz.data_model.FrozenInstanceError):
+        cast(Any, view.child).b = 1
+
+    child = bp.mud_view("child", Child)
+    child.b = 3
+    assert child.b == 3
+
+
+def test_blueprint_mud_polymorphic_castable():
+    @chz.chz
+    class Base:
+        a: int
+
+    @chz.chz
+    class Child(Base):
+        b: int
+
+    @chz.chz
+    class Parent:
+        child: Base = chz.field(
+            meta_factory=chz.factories.subclass(Base, default_cls=Base)
+        )
+
+    bp = chz.Blueprint(Parent)
+    bp.apply({"child": chz.blueprint.Castable("Child")})
+    view = bp.mud()
+    child = cast(Child, view.child)
+    child.b = 4
+    assert child.b == 4
+
+
+def test_blueprint_mud_polymorphic_non_chz_factory():
+    @chz.chz
+    class Base:
+        a: int
+
+    def make_child(a: int) -> Base:
+        return Base(a=a)
+
+    @chz.chz
+    class Parent:
+        child: Base = chz.field(meta_factory=chz.factories.function())
+
+    bp = chz.Blueprint(Parent)
+    bp.apply({"child": make_child})
+    view = bp.mud()
+
+    with pytest.raises(TypeError, match="mud view"):
+        _ = view.child
 
 
 def test_blueprint_mud_shared_freeze_and_thaw():

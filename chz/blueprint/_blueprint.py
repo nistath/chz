@@ -48,6 +48,7 @@ from chz.util import MISSING, MISSING_TYPE
 
 _T = TypeVar("_T")
 _T_cov_def = TypeVar("_T_cov_def", covariant=True, default=Any)
+_T_mud = TypeVar("_T_mud")
 
 
 class SpecialArg: ...
@@ -420,6 +421,12 @@ class Blueprint(Generic[_T_cov_def]):
         from chz.blueprint._mud import make_mud_view
 
         return make_mud_view(self, thaw=thaw)
+
+    def mud_view(self, path: str, view_cls: type[_T_mud], *, thaw: bool = False) -> _T_mud:
+        """Return a mutable view over a nested path, selecting its concrete chz class."""
+        from chz.blueprint._mud import make_mud_view_at
+
+        return make_mud_view_at(self, path, view_cls, thaw=thaw)
 
     def get_help(self, *, color: bool = False) -> str:
         """Get help text for this Blueprint.

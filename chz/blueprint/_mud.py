@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import collections
+import functools
 import typing
 from dataclasses import dataclass
 from typing import Any, Iterable
@@ -154,18 +155,49 @@ class _MudInitProperty:
         return self._prop.__get__(obj, cls)
 
 
+def _chz_type_from_factory(factory: Any) -> type | None:
+    if isinstance(factory, functools.partial):
+        factory = factory.func
+    if isinstance(factory, type) and is_chz(factory):
+        return factory
+    return None
+
+
+def _resolve_mud_view_type(obj: Any, path: str, field: Any) -> type:
+    base_type = _normalize_chz_type(field.x_type)
+    meta_factory = field.meta_factory
+    if meta_factory is None:
+        return base_type
+
+    make_result = obj._mud_state.blueprint._make_lazy()
+    factory = make_result.meta_factory_value.get(path)
+    if factory is None:
+        factory = meta_factory.unspecified_factory()
+    if factory is None:
+        return base_type
+
+    target_cls = _chz_type_from_factory(factory)
+    if target_cls is None:
+        raise TypeError(
+            f"Cannot create mud view for {path!r}; factory {factory!r} is not a chz class"
+        )
+    return target_cls
+
+
 class _MudField:
-    def __init__(self, name: str, field_type: Any) -> None:
+    def __init__(self, name: str, field: Any) -> None:
         self.name = name
-        self.field_type = field_type
-        self.is_chz = _is_chz_type(field_type)
+        self.field = field
+        self.field_type = field.x_type
+        self.is_chz = _is_chz_type(self.field_type)
 
     def __get__(self, obj: Any, cls: Any) -> Any:
         if obj is None:
             return self
         path = join_arg_path(obj._mud_path, self.name)
         if self.is_chz:
-            view_cls = _make_view_class(_normalize_chz_type(self.field_type))
+            target_cls = _resolve_mud_view_type(obj, path, self.field)
+            view_cls = _make_view_class(target_cls)
             return _make_view(obj._mud_state, path, thaw=obj._mud_thaw, view_cls=view_cls)
         return _mud_get_value(obj, path, thaw=obj._mud_thaw)
 
@@ -203,7 +235,7 @@ def _make_view_class(target_cls: type) -> type:
     }
 
     for name, field in fields.items():
-        attrs[name] = _MudField(name, field.x_type)
+        attrs[name] = _MudField(name, field)
 
     for name, obj in target_cls.__dict__.items():
         if isinstance(obj, init_property) and name not in field_names:
@@ -243,12 +275,17 @@ def _mud_get_value(obj: Any, path: str, *, thaw: bool) -> Any:
     return value
 
 
-def _mud_set_value(obj: Any, path: str, value: Any, *, thaw: bool) -> None:
-    blueprint = obj._mud_state.blueprint
+def _mud_set_value_for_blueprint(
+    blueprint: Any, path: str, value: Any, *, thaw: bool
+) -> None:
     if not thaw and _is_frozen(blueprint, path):
         raise FrozenInstanceError(f"Cannot modify frozen field {path!r}")
     blueprint._mud_write_index += 1
     blueprint.apply({path: value}, layer_name=f"mud:set#{blueprint._mud_write_index}")
+
+
+def _mud_set_value(obj: Any, path: str, value: Any, *, thaw: bool) -> None:
+    _mud_set_value_for_blueprint(obj._mud_state.blueprint, path, value, thaw=thaw)
 
 
 def make_mud_view(blueprint, *, thaw: bool) -> Any:
@@ -258,3 +295,14 @@ def make_mud_view(blueprint, *, thaw: bool) -> Any:
     state = _MudState(blueprint)
     view_cls = _make_view_class(target)
     return _make_view(state, "", thaw=thaw, view_cls=view_cls)
+
+
+def make_mud_view_at(
+    blueprint, path: str, target_cls: type, *, thaw: bool
+) -> Any:
+    if not isinstance(target_cls, type) or not is_chz(target_cls):
+        raise TypeError("Blueprint.mud_view requires a chz class")
+    _mud_set_value_for_blueprint(blueprint, path, target_cls, thaw=thaw)
+    state = _MudState(blueprint)
+    view_cls = _make_view_class(target_cls)
+    return _make_view(state, path, thaw=thaw, view_cls=view_cls)
