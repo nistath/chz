@@ -276,21 +276,46 @@ def test_error_on_unset_field():
 
 
 def test_default_factory():
-    """Test that default_factory works correctly."""
+    """Test that default_factory works correctly.
+
+    Edge case: Each read of an unset default_factory field calls the factory again.
+    This is consistent with dataclass semantics but may be surprising. The freezing
+    only prevents writes, not re-evaluation of defaults.
+    """
+    call_count = 0
+
+    def counting_factory() -> list[int]:
+        nonlocal call_count
+        call_count += 1
+        return []
 
     @chz.chz
     class Config:
-        items: list[int] = chz.field(default_factory=list)
+        items: list[int] = chz.field(default_factory=counting_factory)
 
     bp = chz.Blueprint(Config)
     m = bp.mud()
 
-    # Should return a new list from factory
-    items = m.items
-    assert items == []
+    # First read calls factory
+    items1 = m.items
+    assert items1 == []
+    assert call_count == 1
 
-    # Each call should return a new list (factory is called each time before freeze)
-    # But reading freezes, so we can't modify via mud anymore
+    # Second read calls factory again (stateless design - no caching of defaults)
+    items2 = m.items
+    assert items2 == []
+    assert call_count == 2
+
+    # The lists are different instances
+    assert items1 is not items2
+
+    # Field is frozen after first read, so writes fail
+    with pytest.raises(FrozenPropertyError):
+        m.items = [1, 2, 3]
+
+    # make() uses the default (calls factory one more time)
+    result = bp.make()
+    assert result.items == []
 
 
 def test_optional_field():
@@ -407,8 +432,9 @@ def test_mud_init_property_lazy():
     assert call_count == 2
 
     # X_base is frozen (accessed by init_property)
-    # Note: frozen paths use logical field names, so "X_base" becomes "base"
+    # Both logical name and raw name should work
     assert bp.is_mud_frozen("base")
+    assert bp.is_mud_frozen("X_base")  # Raw name also accepted
 
 
 def test_mud_method_uses_init_property():
