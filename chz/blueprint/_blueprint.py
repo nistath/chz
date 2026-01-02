@@ -432,6 +432,12 @@ class Blueprint(Generic[_T_cov_def]):
                 return self._mud_view
 
             elif path is not None and child_type is not None:
+                # Validate child_type is a chz class
+                if not chz.is_chz(child_type):
+                    raise TypeError(
+                        f"mud(path, child_type) requires child_type to be a chz class, "
+                        f"got {type(child_type).__name__}"
+                    )
                 # Nested polymorphic MudView
                 # Apply type selection to Blueprint
                 self.apply({path: child_type}, layer_name="mud")
