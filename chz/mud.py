@@ -94,6 +94,11 @@ class MudView(Generic[_T]):
         For fields with blueprint_unspecified or meta_factory, MudView uses the
         declared base type. Child-only fields are not accessible via MudView.
         Workaround: assign a complete instance (e.g., m.field = Child(x=1, y=2)).
+
+    Default Factory:
+        Fields with default_factory call the factory on each read (stateless design).
+        This is consistent with dataclass semantics but may be surprising. Freezing
+        only prevents writes, not re-evaluation of defaults.
     """
 
     __slots__ = (

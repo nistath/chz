@@ -3,8 +3,17 @@
 #
 # Run: uv run pyright tests/test_mud_types.py
 #
-# Note: Blueprint.mud() uses TYPE_CHECKING trick - returns T for type checker,
-# MudView[T] at runtime. This gives field autocomplete while hiding MudView methods.
+# Type Checking Trade-offs:
+#   Blueprint.mud() returns T for type checkers (MudView[T] at runtime).
+#   This gives field autocomplete but requires # type: ignore[misc] for assignments
+#   because chz classes are frozen dataclasses.
+#
+#   Alternative approaches were considered but have worse trade-offs:
+#   - Return MudView[T]: Loses field types (everything becomes Any)
+#   - Generate Protocols: Not supported at type-check time
+#   - Intersection types: Not supported in Python
+#
+#   The current approach prioritizes IDE autocomplete over assignment type safety.
 
 import chz
 

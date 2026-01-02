@@ -436,8 +436,20 @@ class Blueprint(Generic[_T_cov_def]):
         return target  # type: ignore[return-value]
 
     def is_mud_frozen(self, path: str) -> bool:
-        """Check if a field path has been read via mud() and is now frozen."""
-        return path in self._mud_frozen
+        """Check if a field path has been read via mud() and is now frozen.
+
+        Accepts both raw field names (X_base) and logical names (base).
+        The frozen set internally uses logical names.
+        """
+        if path in self._mud_frozen:
+            return True
+        # Try converting X_ prefixed segments to logical names
+        if "X_" in path:
+            parts = path.split(".")
+            logical_parts = [p.removeprefix("X_") if p.startswith("X_") else p for p in parts]
+            logical_path = ".".join(logical_parts)
+            return logical_path in self._mud_frozen
+        return False
 
     def get_mud_frozen_fields(self) -> set[str]:
         """Return set of all field paths frozen via mud()."""
