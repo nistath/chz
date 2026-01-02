@@ -663,7 +663,121 @@ def test_mud_polymorphic_child_only_field_error():
     bp2 = chz.Blueprint(Main)
     m2 = bp2.mud()
 
-    # Workaround: assign a complete instance
+    # Workaround 1: assign a complete instance
     m2.field = Child(x=10, y=20)
     result = bp2.make()
     assert result.field.y == 20
+
+    # Workaround 2: use mud(path, child_type) for polymorphic access
+    bp3 = chz.Blueprint(Main)
+    field = bp3.mud("field", Child)
+    field.x = 10
+    field.y = 20  # Now accessible!
+    result = bp3.make()
+    assert result.field.x == 10
+    assert result.field.y == 20
+
+
+def test_mud_polymorphic_nested_access():
+    """Test mud(path, child_type) for polymorphic nested field access."""
+
+    @chz.chz
+    class Parent:
+        x: int
+
+    @chz.chz
+    class Child(Parent):
+        y: int
+        z: str = "default"
+
+    @chz.chz
+    class Main:
+        field: Parent = chz.field(blueprint_unspecified=Child)
+        name: str = "main"
+
+    bp = chz.Blueprint(Main)
+
+    # Access root mud for non-polymorphic fields
+    m = bp.mud()
+    m.name = "test"
+
+    # Access polymorphic field with child type
+    field = bp.mud("field", Child)
+    field.x = 10
+    field.y = 20
+    field.z = "custom"
+
+    result = bp.make()
+    assert result.name == "test"
+    assert isinstance(result.field, Child)
+    assert result.field.x == 10
+    assert result.field.y == 20
+    assert result.field.z == "custom"
+
+
+def test_mud_polymorphic_deeply_nested():
+    """Test mud(path, child_type) for deeply nested polymorphic fields."""
+
+    @chz.chz
+    class Base:
+        a: int
+
+    @chz.chz
+    class Derived(Base):
+        b: int
+
+    @chz.chz
+    class Container:
+        item: Base = chz.field(blueprint_unspecified=Derived)
+
+    @chz.chz
+    class Root:
+        container: Container
+
+    bp = chz.Blueprint(Root)
+
+    # Access deeply nested polymorphic field
+    item = bp.mud("container.item", Derived)
+    item.a = 1
+    item.b = 2
+
+    result = bp.make()
+    assert isinstance(result.container.item, Derived)
+    assert result.container.item.a == 1
+    assert result.container.item.b == 2
+
+
+def test_mud_polymorphic_freezing():
+    """Test that mud(path, child_type) respects freezing semantics."""
+
+    @chz.chz
+    class Parent:
+        x: int
+
+    @chz.chz
+    class Child(Parent):
+        y: int
+
+    @chz.chz
+    class Main:
+        field: Parent = chz.field(blueprint_unspecified=Child)
+
+    bp = chz.Blueprint(Main)
+
+    field = bp.mud("field", Child)
+    field.x = 10
+    field.y = 20
+
+    # Reading freezes the field
+    _ = field.x
+
+    # Can't write to frozen field
+    with pytest.raises(FrozenPropertyError):
+        field.x = 100
+
+    # But can still write to non-frozen field
+    field.y = 30
+
+    result = bp.make()
+    assert result.field.x == 10
+    assert result.field.y == 30
