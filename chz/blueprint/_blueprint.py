@@ -367,9 +367,22 @@ class Blueprint(Generic[_T_cov_def]):
         r = self._make_lazy()
         return self._make_from_make_result(r)
 
-    if TYPE_CHECKING:
+    _U = TypeVar("_U")
 
+    if TYPE_CHECKING:
+        from typing import overload
+
+        @overload
         def mud(self) -> _T_cov_def:
+            """Return a mutable view of this Blueprint."""
+            ...
+
+        @overload
+        def mud(self, path: str, child_type: type[_U]) -> _U:
+            """Return a mutable view for a nested polymorphic field."""
+            ...
+
+        def mud(self, path: str | None = None, child_type: type | None = None) -> Any:
             """Return a mutable view of this Blueprint.
 
             The view acts like a chz instance but is mutable. Writes are
@@ -384,6 +397,16 @@ class Blueprint(Generic[_T_cov_def]):
                 print(m.name)  # Freezes 'name'
                 config = bp.make()  # Includes mud writes
 
+            Polymorphic Fields:
+                For nested fields with polymorphic types, use the two-argument
+                form to specify the concrete child type:
+
+                    field = bp.mud("field", Child)
+                    field.child_only_attr = 42
+
+                This selects Child as the type and returns a MudView with
+                access to Child's fields.
+
             Freezing:
                 Once a field is read, it cannot be written again. For nested
                 fields, accessing m.inner freezes "inner" but you can still
@@ -392,25 +415,31 @@ class Blueprint(Generic[_T_cov_def]):
             Companion Methods:
                 - bp.is_mud_frozen(path) - Check if a path is frozen
                 - bp.get_mud_frozen_fields() - Get all frozen paths
-
-            Returns:
-                A MudView that appears as type T for autocompletion. Fields
-                can be read and written via attribute access.
             """
             ...
 
     else:
 
-        def mud(self):
+        def mud(self, path: str | None = None, child_type: type | None = None):
             """Return a mutable view of this Blueprint."""
             from chz.mud import MudView
 
-            # Always create fresh MudView (stateless, so caching optional)
-            # We still cache for identity/singleton semantics
-            if not hasattr(self, "_mud_view"):
-                target_class = self._get_target_class()
-                self._mud_view = MudView(self, target_class, "")
-            return self._mud_view
+            if path is None and child_type is None:
+                # Root MudView - cached for singleton semantics
+                if not hasattr(self, "_mud_view"):
+                    target_class = self._get_target_class()
+                    self._mud_view = MudView(self, target_class, "")
+                return self._mud_view
+
+            elif path is not None and child_type is not None:
+                # Nested polymorphic MudView
+                # Apply type selection to Blueprint
+                self.apply({path: child_type}, layer_name="mud")
+                # Return fresh MudView at path with child type
+                return MudView(self, child_type, path)
+
+            else:
+                raise ValueError("mud() requires either no arguments or both path and child_type")
 
     def _get_target_class(self) -> type[_T_cov_def]:
         """Extract the target chz class from this Blueprint."""

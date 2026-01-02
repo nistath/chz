@@ -92,8 +92,13 @@ class MudView(Generic[_T]):
 
     Polymorphic Fields:
         For fields with blueprint_unspecified or meta_factory, MudView uses the
-        declared base type. Child-only fields are not accessible via MudView.
-        Workaround: assign a complete instance (e.g., m.field = Child(x=1, y=2)).
+        declared base type. Child-only fields are not accessible via the root
+        MudView. Use bp.mud(path, child_type) to get a MudView with the child type:
+
+            field = bp.mud("field", Child)
+            field.child_only_attr = 42
+
+        Alternatively, assign a complete instance: m.field = Child(x=1, y=2).
 
     Default Factory:
         Fields with default_factory call the factory on each read (stateless design).
