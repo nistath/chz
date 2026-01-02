@@ -289,6 +289,7 @@ def _mud_set_value(obj: Any, path: str, value: Any, *, thaw: bool) -> None:
 
 
 def make_mud_view(blueprint, *, thaw: bool) -> Any:
+    """Create a mud view for the Blueprint's root target."""
     target = blueprint.target
     if not isinstance(target, type) or not is_chz(target):
         raise TypeError("Blueprint.mud is only supported for chz classes")
@@ -300,6 +301,7 @@ def make_mud_view(blueprint, *, thaw: bool) -> Any:
 def make_mud_view_at(
     blueprint, path: str, target_cls: type, *, thaw: bool
 ) -> Any:
+    """Create a mud view rooted at path, selecting target_cls for that field."""
     if not isinstance(target_cls, type) or not is_chz(target_cls):
         raise TypeError("Blueprint.mud_view requires a chz class")
     _mud_set_value_for_blueprint(blueprint, path, target_cls, thaw=thaw)

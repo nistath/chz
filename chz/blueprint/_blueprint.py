@@ -417,13 +417,23 @@ class Blueprint(Generic[_T_cov_def]):
         return self.make()
 
     def mud(self, *, thaw: bool = False) -> _T_cov_def:
-        """Return a mutable view over this Blueprint."""
+        """Return a mutable view over this Blueprint.
+
+        Assignments append Blueprint layers, and reads freeze the accessed path (and any
+        dependencies) so it cannot be rewritten later. Use thaw=True as an escape hatch to
+        disable freezing; this can invalidate other views over the same Blueprint.
+        """
         from chz.blueprint._mud import make_mud_view
 
         return make_mud_view(self, thaw=thaw)
 
     def mud_view(self, path: str, view_cls: type[_T_mud], *, thaw: bool = False) -> _T_mud:
-        """Return a mutable view over a nested path, selecting its concrete chz class."""
+        """Return a mutable view over a nested path, selecting its concrete chz class.
+
+        This is the ergonomic way to work with polymorphic fields. It applies the selection
+        `{path: view_cls}` to the Blueprint (subject to freezing rules) and returns a view
+        rooted at `path` whose type is `view_cls`.
+        """
         from chz.blueprint._mud import make_mud_view_at
 
         return make_mud_view_at(self, path, view_cls, thaw=thaw)
