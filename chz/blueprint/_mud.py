@@ -145,14 +145,30 @@ class _MudInitProperty:
     def __init__(self, prop: init_property[Any]) -> None:
         self._prop = prop
         self.func = prop.func
-        self.name = getattr(prop, "name", None)
+        self.name = getattr(prop, "name", None) or getattr(prop.func, "__name__", None)
 
     def __get__(self, obj: Any, cls: Any) -> Any:
         if obj is None:
             return self
-        if getattr(obj, "_mud_thaw", False):
-            return self.func(obj)
-        return self._prop.__get__(obj, cls)
+        return self.func(obj)
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        raise FrozenInstanceError(f"Cannot modify field {self.name!r}")
+
+
+class _MudCachedProperty:
+    def __init__(self, prop: functools.cached_property[Any]) -> None:
+        self._prop = prop
+        self.func = prop.func
+        self.name = getattr(prop, "attrname", None) or getattr(prop.func, "__name__", None)
+
+    def __get__(self, obj: Any, cls: Any) -> Any:
+        if obj is None:
+            return self
+        return self.func(obj)
+
+    def __set__(self, obj: Any, value: Any) -> None:
+        raise FrozenInstanceError(f"Cannot modify field {self.name!r}")
 
 
 def _chz_type_from_factory(factory: Any) -> type | None:
@@ -240,6 +256,8 @@ def _make_view_class(target_cls: type) -> type:
     for name, obj in target_cls.__dict__.items():
         if isinstance(obj, init_property) and name not in field_names:
             attrs[name] = _MudInitProperty(obj)
+        elif isinstance(obj, functools.cached_property) and name not in field_names:
+            attrs[name] = _MudCachedProperty(obj)
 
     view_cls = type(f"Mud{target_cls.__name__}", (target_cls,), attrs)
     _MUD_VIEW_CACHE[target_cls] = view_cls

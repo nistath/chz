@@ -1,3 +1,4 @@
+import functools
 from typing import Any, cast
 
 import pytest
@@ -202,6 +203,44 @@ def test_blueprint_mud_thaw_init_property_no_cache():
     assert view.doubled == 4
 
 
+def test_blueprint_mud_init_property_updates_after_thaw():
+    @chz.chz
+    class Foo:
+        a: int
+
+        @chz.init_property
+        def doubled(self) -> int:
+            return self.a * 2
+
+    bp = chz.Blueprint(Foo)
+    view = bp.mud()
+    view.a = 1
+    assert view.doubled == 2
+
+    thawed = bp.mud(thaw=True)
+    thawed.a = 3
+    assert view.doubled == 6
+
+
+def test_blueprint_mud_cached_property_updates_after_thaw():
+    @chz.chz
+    class Foo:
+        a: int
+
+        @functools.cached_property
+        def doubled(self) -> int:
+            return self.a * 2
+
+    bp = chz.Blueprint(Foo)
+    view = bp.mud()
+    view.a = 2
+    assert view.doubled == 4
+
+    thawed = bp.mud(thaw=True)
+    thawed.a = 5
+    assert view.doubled == 10
+
+
 def test_blueprint_mud_freezes_reference_dependencies():
     @chz.chz
     class Foo:
@@ -215,6 +254,28 @@ def test_blueprint_mud_freezes_reference_dependencies():
 
     with pytest.raises(chz.data_model.FrozenInstanceError):
         view.a = 2
+
+
+def test_blueprint_mud_freeze_survives_apply_subpath():
+    @chz.chz
+    class Child:
+        x: int
+
+    @chz.chz
+    class Parent:
+        child: Child
+
+    child_bp = chz.Blueprint(Child)
+    child_view = child_bp.mud()
+    child_view.x = 1
+    assert child_view.x == 1
+
+    parent_bp = chz.Blueprint(Parent)
+    parent_bp.apply(cast(chz.Blueprint[Any], child_bp), subpath="child")
+    parent_view = parent_bp.mud()
+
+    with pytest.raises(chz.data_model.FrozenInstanceError):
+        parent_view.child.x = 2
 
 
 def test_blueprint_mud_requires_chz_class():
