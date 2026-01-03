@@ -6,6 +6,9 @@ readme = "README.md"
 license = {file = "LICENSE"}
 authors = [{name = "Shantanu Jain"}, {email = "shantanu@openai.com"}]
 dependencies = [
+    "cloudpickle>=3.1.2",
+    "frozendict>=2.4.7",
+    "pydantic>=2.12.5",
     "typing-extensions>=4.13",
 ]
 requires-python = ">=3.11"
@@ -58,4 +61,11 @@ exclude_lines = [
     "if MYPY",
     "if TYPE_CHECKING",
     "elif TYPE_CHECKING",
+]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.19.1",
+    "pyright>=1.1.407",
+    "pytest>=9.0.2",
 ]
