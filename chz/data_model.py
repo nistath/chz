@@ -262,10 +262,12 @@ def pretty_format(obj: Any, colored: bool = True) -> str:
         if field._repr is False:
             return "..."
         if callable(field._repr):
-            r = field._repr
+            r = field._repr  # pyright: ignore[reportAssignmentType]
         else:
             assert field._repr is True
-            r = lambda o: pretty_format(o, colored=colored)
+
+            def r(o: object, _colored: bool = colored) -> str:
+                return pretty_format(o, colored=_colored)
 
         x_val = getattr(obj, field.x_name)
         val = getattr(obj, field.logical_name)
@@ -442,11 +444,13 @@ def chz_make_class(cls, version: str | None, typecheck: bool | None) -> type:
             field.logical_name not in cls.__dict__  # ...if something is already there in class
             and field.logical_name not in fields  # ...if a parent has defined the field
         ):
-            fn: Any = lambda self, x_name=field.x_name: getattr(self, x_name)
-            fn.__name__ = field.logical_name
-            fn = init_property(fn)
-            fn.__set_name__(cls, field.logical_name)
-            setattr(cls, field.logical_name, fn)
+            def _getter(self: Any, x_name: str = field.x_name) -> Any:
+                return getattr(self, x_name)
+
+            _getter.__name__ = field.logical_name
+            prop: Any = init_property(_getter)
+            prop.__set_name__(cls, field.logical_name)
+            setattr(cls, field.logical_name, prop)
 
         fields[field.logical_name] = field
 

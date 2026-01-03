@@ -110,7 +110,7 @@ class Field:
         raw_type: TypeForm | str,
         default: Any = MISSING,
         default_factory: Callable[[], Any] | MISSING_TYPE = MISSING,
-        munger: Munger | Callable[[Any, Any], Any] | None = None,
+        munger: Munger | Callable[[Any, Any], Any] | None = None,  # pyright: ignore[reportRedeclaration]
         raw_x_type: TypeForm | MISSING_TYPE = MISSING,
         converter: Callable[[Any], Any] | None = None,
         meta_factory: chz.factories.MetaFactory | None | MISSING_TYPE = MISSING,
@@ -158,7 +158,7 @@ class Field:
             if not callable(converter):
                 raise TypeError(f"converter must be callable, not {type(converter)}")
             if isinstance(converter, Munger):
-                munger = converter
+                munger = converter  # pyright: ignore[reportAssignmentType]
             else:
                 # Note: when the munger arg is a function, it is called as munger(chzself, value),
                 # but converters must be defined with the value as the only positional parameter,
@@ -166,7 +166,9 @@ class Field:
                 # TODO: change the signature of functions passed to the `munger` argument to be
                 # compatible with `converter`?
                 c = converter
-                munger = lambda s, v: c(v, chzself=s)  # type: ignore
+
+                def munger(s, v, _c=c):  # pyright: ignore[reportAssignmentType, reportRedeclaration]
+                    return _c(v, chzself=s)
 
         if munger is not None and not callable(munger):
             raise TypeError(f"munger must be callable, not {type(munger)}")

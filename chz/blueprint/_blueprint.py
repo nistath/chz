@@ -596,26 +596,32 @@ def _collect_params_from_sequence(
     obj_origin = getattr(obj, "__origin__", obj)
     obj_type_construct = obj_origin
 
-    type_for_index: Callable[[int], type]
+    type_for_index: Callable[[int], type]  # pyright: ignore[reportRedeclaration]
     if obj_origin is list:
         element_type = getattr(obj, "__args__", [object])[0]
-        type_for_index = lambda i: element_type
+
+        def type_for_index(i: int, _et: type = element_type) -> type:  # pyright: ignore[reportRedeclaration]
+            return _et
+
         variadic_types = [element_type]
 
     elif obj_origin is collections.abc.Sequence:
         element_type = getattr(obj, "__args__", [object])[0]
-        type_for_index = lambda i: element_type
+
+        def type_for_index(i: int, _et: type = element_type) -> type:  # pyright: ignore[reportRedeclaration]
+            return _et
+
         variadic_types = [element_type]
         obj_type_construct = tuple
 
     elif obj_origin is tuple:
-        args: tuple[Any, ...] | None = getattr(obj, "__args__", None)
-        if args is None:
-            args = (Any, ...)
+        args: tuple[Any, ...] = getattr(obj, "__args__", None) or (Any, ...)
 
         if len(args) == 2 and args[-1] is ...:
             # homogeneous tuple
-            type_for_index = lambda i: args[0]
+            def type_for_index(i: int, _args: tuple[Any, ...] = args) -> type:  # pyright: ignore[reportRedeclaration]
+                return _args[0]
+
             variadic_types = [args[0]]
         else:
             # heterogeneous tuple
@@ -629,7 +635,10 @@ def _collect_params_from_sequence(
                         else ""
                     )
                 )
-            type_for_index = lambda i: args[i]
+
+            def type_for_index(i: int, _args: tuple[Any, ...] = args) -> type:  # pyright: ignore[reportRedeclaration]
+                return _args[i]
+
             variadic_types = list(args)
     else:
         raise AssertionError

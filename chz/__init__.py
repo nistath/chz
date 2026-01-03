@@ -29,6 +29,7 @@ __all__ = [
     "chz",
     "is_chz",
     "chz_fields",
+    "dispatch_entrypoint",
     "entrypoint",
     "field",
     "get_nested_target",
