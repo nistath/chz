@@ -341,8 +341,8 @@ def _find_subclass(spec: str, superclass: TypeForm):
     assert superclass_class_origin is not type
 
     visited_subclasses = set()
-    all_subclasses = collections.deque(superclass_class_origin.__subclasses__())
-    all_subclasses.appendleft(superclass)
+    all_subclasses: collections.deque[type] = collections.deque(superclass_class_origin.__subclasses__())
+    all_subclasses.appendleft(superclass)  # type: ignore[arg-type]
 
     candidates = []
     while all_subclasses:

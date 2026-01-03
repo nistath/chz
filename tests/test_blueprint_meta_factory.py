@@ -1,3 +1,5 @@
+# mypy: disable-error-code="no-redef, type-arg, assignment"
+# pyright: reportRedeclaration=false
 import typing
 from typing import Optional
 

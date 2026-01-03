@@ -1,3 +1,5 @@
+# mypy: disable-error-code="arg-type, misc"
+# pyright: reportOptionalCall=false, reportArgumentType=false
 """
 
 Watch out for some of the extra parentheses in these tests.

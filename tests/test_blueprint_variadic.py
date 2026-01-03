@@ -1,3 +1,4 @@
+# mypy: disable-error-code="type-arg"
 import typing
 
 import pytest

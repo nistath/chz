@@ -1,3 +1,5 @@
+# mypy: disable-error-code="call-arg, no-redef"
+# pyright: reportCallIssue=false, reportRedeclaration=false
 import pytest
 
 import chz

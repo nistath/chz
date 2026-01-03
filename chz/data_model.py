@@ -557,7 +557,8 @@ def replace(obj: _T, /, **changes) -> _T:
     if not hasattr(obj, "__chz_fields__"):
         raise ValueError(f"{obj} is not a chz object")
 
-    for field in obj.__chz_fields__.values():
+    chz_fields_map = getattr(obj, "__chz_fields__")
+    for field in chz_fields_map.values():
         if field.logical_name not in changes:
             changes[field.logical_name] = getattr(obj, field.x_name)
     return obj.__class__(**changes)

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="no-redef"
+# pyright: reportRedeclaration=false
 import pytest
 
 import chz

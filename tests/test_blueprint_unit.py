@@ -1,3 +1,5 @@
+# mypy: disable-error-code="union-attr"
+# pyright: reportOptionalMemberAccess=false
 import pytest
 
 from chz.blueprint import Blueprint, Castable, beta_argv_arg_to_string, beta_blueprint_to_argv

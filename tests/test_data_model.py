@@ -1,4 +1,6 @@
 # ruff: noqa: F811
+# mypy: disable-error-code="var-annotated, no-untyped-call, call-arg, no-redef, misc, import-untyped, unused-ignore, assignment, comparison-overlap, list-item, dict-item, attr-defined, abstract, arg-type"
+# pyright: reportCallIssue=false, reportRedeclaration=false, reportAttributeAccessIssue=false, reportArgumentType=false, reportAssignmentType=false, reportIncompatibleMethodOverride=false, reportIncompatibleVariableOverride=false, reportAbstractUsage=false, reportGeneralTypeIssues=false
 import dataclasses
 import functools
 import json

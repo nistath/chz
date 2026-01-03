@@ -1,3 +1,5 @@
+# mypy: disable-error-code="comparison-overlap"
+# pyright: reportAttributeAccessIssue=false
 import re
 import textwrap
 from unittest.mock import patch

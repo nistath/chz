@@ -1,3 +1,5 @@
+# mypy: disable-error-code="arg-type"
+# pyright: reportArgumentType=false
 import re
 
 import chz

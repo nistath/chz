@@ -67,7 +67,7 @@ if TYPE_CHECKING:
     @overload
     def chz(cls: _TypeT, /) -> _TypeT: ...
 
-    def chz(*a, **k):
+    def chz(*a, **k):  # pyright: ignore[reportInconsistentOverload]
         raise NotImplementedError
 
 else:

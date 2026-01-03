@@ -1,6 +1,8 @@
 # ruff: noqa: UP006
 # ruff: noqa: UP007
 # ruff: noqa: UP045
+# mypy: disable-error-code="valid-type, empty-body, no-redef, override, misc, call-arg, name-defined, method-assign, assignment, import-not-found"
+# pyright: reportGeneralTypeIssues=false, reportInvalidTypeForm=false, reportRedeclaration=false, reportAttributeAccessIssue=false, reportIncompatibleMethodOverride=false, reportMissingImports=false
 import collections.abc
 import enum
 import fractions
@@ -802,7 +804,7 @@ def test_is_subtype_instance_pydantic_utils() -> None:
                 cls,
                 __class__,
                 source,
-                handler,  # type:ignore[name-defined]
+                handler,
             )
 
     class Bar(Foo[T], typing.Generic[T]):

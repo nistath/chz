@@ -1,3 +1,5 @@
+# mypy: disable-error-code="arg-type, call-arg, no-redef, attr-defined, type-arg"
+# pyright: reportArgumentType=false, reportCallIssue=false, reportRedeclaration=false, reportAttributeAccessIssue=false, reportIncompatibleVariableOverride=false
 import math
 import re
 from typing import Generic, TypeVar
@@ -33,7 +35,7 @@ def test_validate():
 
     X(attr=1)
     with pytest.raises(TypeError, match="Expected X_attr to be int, got str"):
-        X(attr="1")  # type: ignore
+        X(attr="1")
 
     @chz.chz
     class Y:
@@ -46,7 +48,7 @@ def test_validate():
 
     Y(attr=1)
     with pytest.raises(TypeError, match="Expected X_attr to be int, got str"):
-        Y(attr="1")  # type: ignore
+        Y(attr="1")
     with pytest.raises(ValueError, match="attr must be non-negative"):
         Y(attr=-1)
 
@@ -57,7 +59,7 @@ def test_validate():
     Z(attr=1)
     Z(attr="asdf")
     with pytest.raises(TypeError, match=r"int \| str, got bytes"):
-        Z(attr=b"fdsa")  # type: ignore
+        Z(attr=b"fdsa")
 
 
 def test_validate_replace():

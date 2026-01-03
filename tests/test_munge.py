@@ -1,3 +1,5 @@
+# mypy: disable-error-code="attr-defined, arg-type, call-arg, unused-ignore"
+# pyright: reportAttributeAccessIssue=false, reportArgumentType=false, reportCallIssue=false
 from typing import Any, Callable, TypedDict, TypeVar
 
 import pytest

@@ -1,3 +1,5 @@
+# mypy: disable-error-code="attr-defined, arg-type"
+# pyright: reportFunctionMemberAccess=false, reportArgumentType=false
 import pytest
 
 import chz

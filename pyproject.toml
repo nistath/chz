@@ -63,6 +63,12 @@ exclude_lines = [
     "elif TYPE_CHECKING",
 ]
 
+[tool.pyright]
+include = ["chz", "tests"]
+ignore = ["chz/tiepin.py"]
+pythonVersion = "3.11"
+typeCheckingMode = "standard"
+
 [dependency-groups]
 dev = [
     "mypy>=1.19.1",
