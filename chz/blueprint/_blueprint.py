@@ -35,6 +35,7 @@ from chz.blueprint._lazy import (
 from chz.field import Field
 from chz.tiepin import (
     CastError,
+    TypeForm,
     _simplistic_try_cast,
     _simplistic_type_of_value,
     eval_in_context,
@@ -188,7 +189,7 @@ def _found_arg_desc(
 
 class Blueprint(Generic[_T_cov_def]):
     def __init__(
-        self, target: chz.factories.MetaFactory | type[_T_cov_def] | Callable[..., _T_cov_def]
+        self, target: chz.factories.MetaFactory | TypeForm | Callable[..., _T_cov_def]
     ) -> None:
         """Instantiate a Blueprint.
 

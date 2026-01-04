@@ -1,6 +1,6 @@
 import math
 import re
-from typing import Generic, TypeVar
+from typing import Any, Generic, TypeVar, cast
 
 import pytest
 
@@ -33,7 +33,7 @@ def test_validate():
 
     X(attr=1)
     with pytest.raises(TypeError, match="Expected X_attr to be int, got str"):
-        X(attr="1")  # type: ignore
+        X(attr=cast(Any, "1"))
 
     @chz.chz
     class Y:
@@ -46,7 +46,7 @@ def test_validate():
 
     Y(attr=1)
     with pytest.raises(TypeError, match="Expected X_attr to be int, got str"):
-        Y(attr="1")  # type: ignore
+        Y(attr=cast(Any, "1"))
     with pytest.raises(ValueError, match="attr must be non-negative"):
         Y(attr=-1)
 
@@ -57,7 +57,7 @@ def test_validate():
     Z(attr=1)
     Z(attr="asdf")
     with pytest.raises(TypeError, match=r"int \| str, got bytes"):
-        Z(attr=b"fdsa")  # type: ignore
+        Z(attr=cast(Any, b"fdsa"))
 
 
 def test_validate_replace():
@@ -83,11 +83,11 @@ def test_for_all_fields():
 
     X(a="asdf", b=1)
     with pytest.raises(TypeError, match="Expected X_a to be str, got int"):
-        X(a=1, b=1)
+        X(a=cast(Any, 1), b=1)
     with pytest.raises(TypeError, match="Expected X_b to be int, got str"):
-        X(a="asdf", b="asdf")
+        X(a="asdf", b=cast(Any, "asdf"))
     with pytest.raises(TypeError, match="Expected X_a to be str, got int"):
-        X(a=1, b="asdf")
+        X(a=cast(Any, 1), b=cast(Any, "asdf"))
 
 
 def test_validate_inheritance_field_level():
@@ -100,7 +100,7 @@ def test_validate_inheritance_field_level():
         b: int
 
     with pytest.raises(TypeError, match="Expected X_a to be str, got int"):
-        Y(a=1, b=1)
+        Y(a=cast(Any, 1), b=1)
 
     @chz.chz
     class A:
@@ -114,7 +114,7 @@ def test_validate_inheritance_field_level():
     A(x=Y(a="asdf", b=1))
     B(x=Y(a="asdf", b=1))
     # But note that if you clobber an attribute, the field-level validator also gets clobbered
-    B(x=X(a="asdf"))
+    B(x=cast(Any, X(a="asdf")))
 
 
 def test_validate_init_property():
@@ -126,9 +126,9 @@ def test_validate_init_property():
         def attr(self) -> str:
             return str(self.X_attr)
 
-    A1(attr="attr")
+    cast(Any, A1)(attr="attr")
     with pytest.raises(TypeError, match="Expected X_attr to be str, got int"):
-        A1(attr=1)
+        cast(Any, A1)(attr=1)
 
     @chz.chz
     class A2:
@@ -138,10 +138,10 @@ def test_validate_init_property():
         def attr(self) -> str:  # changes type
             return str(self.X_attr)
 
-    A2(attr=1)
+    cast(Any, A2)(attr=1)
 
     with pytest.raises(TypeError, match="Expected X_attr to be int, got str"):
-        A2(attr="attr")
+        cast(Any, A2)(attr="attr")
 
 
 def test_validate_init_property_order():
@@ -168,11 +168,11 @@ def test_validate_munger():
         A(a=1)
 
     @chz.chz
-    class A:
+    class A2:
         a: int = chz.field(munger=lambda s, v: 100, validator=chz.validators.lt(10))
 
     with pytest.raises(ValueError, match="Expected a to be less than 10, got 100"):
-        A(a=1)
+        A2(a=1)
 
 
 def test_validate_ge_le() -> None:
@@ -235,9 +235,9 @@ def test_validate_inheritance_class_level():
 
     Z(a="banana", b=1, c=b"asdf")
 
-    assert len(X.__chz_validators__) == 1
-    assert len(Y.__chz_validators__) == 1
-    assert len(Z.__chz_validators__) == 3
+    assert len(cast(Any, X).__chz_validators__) == 1
+    assert len(cast(Any, Y).__chz_validators__) == 1
+    assert len(cast(Any, Z).__chz_validators__) == 3
 
 
 def test_validate_decorator_option():
@@ -247,7 +247,7 @@ def test_validate_decorator_option():
 
     X(a="asdf")
     with pytest.raises(TypeError, match="Expected X_a to be str, got int"):
-        X(a=1)
+        X(a=cast(Any, 1))
 
     @chz.chz
     class Y(X):
@@ -255,15 +255,15 @@ def test_validate_decorator_option():
 
     Y(a="asdf", b=1)
     with pytest.raises(TypeError, match="Expected X_a to be str, got int"):
-        Y(a=1, b=1)
+        Y(a=cast(Any, 1), b=1)
     with pytest.raises(TypeError, match="Expected X_b to be int, got str"):
-        Y(a="asdf", b="asdf")
+        Y(a="asdf", b=cast(Any, "asdf"))
 
     @chz.chz(typecheck=True)
     class Z(X):
         c: bytes
 
-    assert len(Z.__chz_validators__) == 1
+    assert len(cast(Any, Z).__chz_validators__) == 1
 
     with pytest.raises(ValueError, match="Cannot disable typecheck; all validators are inherited"):
 
@@ -324,7 +324,7 @@ def test_validate_literal():
     A(attr="a")
     A(attr="b")
     with pytest.raises(TypeError, match=r"Expected X_attr to be Literal\['a', 'b'\], got 'c'"):
-        A(attr="c")
+        A(attr=cast(Any, "c"))
 
 
 def test_validate_const_default():
@@ -396,7 +396,7 @@ Field 'const' has inconsistent values in object tree:
         seq: list[F]
 
     @chz.chz
-    class D:
+    class D2:
         const: int
         e: E
 
@@ -405,7 +405,7 @@ Field 'const' has inconsistent values in object tree:
             chz.validators.check_field_consistency_in_tree(self, {"const"}, regex_root=r"e\.seq")
 
     # This should not raise an error because the check is only done on the `e.seq` field
-    assert D(const=1, e=E(seq=[F(const=3), F(const=3)])).e.seq[0].const == 3
+    assert D2(const=1, e=E(seq=[F(const=3), F(const=3)])).e.seq[0].const == 3
 
     with pytest.raises(
         ValueError,
@@ -416,7 +416,7 @@ Field 'const' has inconsistent values in object tree:
 4 at e.seq.1.const"""
         ),
     ):
-        D(const=1, e=E(seq=[F(const=3), F(const=4)]))
+        D2(const=1, e=E(seq=[F(const=3), F(const=4)]))
 
 
 def test_is_override_catches_non_overriding() -> None:
@@ -550,7 +550,7 @@ def test_is_override_catches_bad_generic_default_factory() -> None:
 
     # Check that normal overriding words
     @chz.chz
-    class MyGoodAtom(Atom, Generic[T]):
+    class MyGoodAtom(Atom[T], Generic[T]):
         box: Box[str] = chz.field(
             default_factory=lambda: Box[str]("hi"), validator=chz.validators.is_override
         )
@@ -558,9 +558,9 @@ def test_is_override_catches_bad_generic_default_factory() -> None:
     assert MyGoodAtom().box.value == "hi"
 
     @chz.chz
-    class MyBadAtom(Atom, Generic[T]):
+    class MyBadAtom(Atom[T], Generic[T]):
         box: Box[str] = chz.field(
-            default_factory=lambda: Box[int](5), validator=chz.validators.is_override
+            default_factory=lambda: cast(Any, Box[int](5)), validator=chz.validators.is_override
         )
 
     with pytest.raises(
@@ -580,7 +580,7 @@ def test_is_override_works_with_default_factory() -> None:
         bases: tuple[Base, ...]
 
     def my_bad_factory() -> tuple[Base, ...]:
-        return Base(), "oop", Base()  # type: ignore
+        return cast(tuple[Base, ...], (Base(), "oop", Base()))
 
     @chz.chz
     class MyBadHasBases(HasBases):
@@ -602,7 +602,7 @@ def test_is_override_mixin_catches_bad_types_in_subclasses() -> None:
 
     @chz.chz
     class MyBadAtom(Atom, chz.validators.IsOverrideMixin):
-        x: int = chz.field(default="foo")
+        x: int = chz.field(default=cast(Any, "foo"))
 
     @chz.chz
     class Container:
@@ -610,7 +610,10 @@ def test_is_override_mixin_catches_bad_types_in_subclasses() -> None:
 
     @chz.chz
     class MyBadContainer(Container):
-        atom: Atom = chz.field(default_factory=MyBadAtom, blueprint_unspecified=MyBadAtom)
+        atom: Atom = chz.field(
+            default_factory=cast(Any, MyBadAtom),
+            blueprint_unspecified=cast(Any, MyBadAtom),
+        )
 
     with pytest.raises(
         ValueError,
@@ -631,7 +634,7 @@ def test_is_override_mixin_works_on_field_default() -> None:
 
     @chz.chz
     class BaseSub(Base, chz.validators.IsOverrideMixin):
-        x: int = "foo"  # type: ignore  # that's the point of this test!
+        x: int = cast(Any, "foo")  # that's the point of this test!
 
     with pytest.raises(
         ValueError,
@@ -641,7 +644,7 @@ def test_is_override_mixin_works_on_field_default() -> None:
 
     @chz.chz
     class BadIntermediate(Base):
-        x: str = "sneaky intermediate class trying to mess things up"  # type: ignore
+        x: str = "sneaky intermediate class trying to mess things up"  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     @chz.chz
     class BadFinal(BadIntermediate, chz.validators.IsOverrideMixin):
@@ -655,7 +658,7 @@ def test_is_override_mixin_works_on_field_default() -> None:
 
     @chz.chz
     class BadFinalThatMatchesIntermediate(BadIntermediate, chz.validators.IsOverrideMixin):
-        x: str = "strings are bad here because it doesn't match the Base definition!"  # type: ignore
+        x: str = "strings are bad here because it doesn't match the Base definition!"  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
 
     with pytest.raises(
         ValueError,
@@ -682,9 +685,9 @@ def test_is_override_mixin_works_with_x_fields() -> None:
 
     @chz.chz
     class BadOverride(Base, chz.validators.IsOverrideMixin):
-        X_value: tuple[str, ...] = chz.field(
+        X_value: tuple[str, ...] = chz.field(  # type: ignore[assignment]  # pyright: ignore[reportIncompatibleVariableOverride]
             default=("look at me eagerly create", "a tuple of strings")
-        )  # type: ignore
+        )
 
     @chz.chz
     class BadOverride2(Base, chz.validators.IsOverrideMixin):

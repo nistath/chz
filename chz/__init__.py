@@ -67,8 +67,8 @@ if TYPE_CHECKING:
     @overload
     def chz(cls: _TypeT, /) -> _TypeT: ...
 
-    def chz(*a, **k):
-        raise NotImplementedError
+    def chz(*a, **k) -> object:
+        ...
 
 else:
     chz = _chz

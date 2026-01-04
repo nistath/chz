@@ -4,6 +4,7 @@ import functools
 import json
 import re
 import typing
+from typing import Any, cast
 
 import pytest
 
@@ -61,7 +62,7 @@ class X:
 """
 
 
-def _test_construct_helper(X):
+def _test_construct_helper(X: type[Any]) -> None:
     with pytest.raises(TypeError, match="missing 2 required keyword-only arguments: 'a' and 'b'"):
         X()
 
@@ -88,17 +89,17 @@ def _test_construct_helper(X):
 
 def test_construct_without_future_annotations():
     prog = without_future_annotation + basic_definition
-    ns = {}
+    ns: dict[str, object] = {}
     exec(compile(prog, "", "exec", dont_inherit=True), {"chz": chz}, ns)
-    X = ns["X"]
+    X = cast(type[Any], ns["X"])
     _test_construct_helper(X)
 
 
 def test_construct_with_future_annotations():
     prog = with_future_annotation + basic_definition
-    ns = {}
+    ns: dict[str, object] = {}
     exec(compile(prog, "", "exec", dont_inherit=True), {"chz": chz}, ns)
-    X = ns["X"]
+    X = cast(type[Any], ns["X"])
     _test_construct_helper(X)
 
 
@@ -179,20 +180,21 @@ def test_immutability():
             return self.a
 
     y = Y(a=1)
+    y_mut = cast(Any, y)
 
     assert y.b == 1
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        y.b = 2  # type: ignore
+        y_mut.b = 2
 
     assert y.c == 1
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        y.c = 2  # type: ignore
+        y_mut.c = 2
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        del y.c  # type: ignore
+        del y_mut.c
 
     assert y.d == 1
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        y.d = 2  # type: ignore
+        y_mut.d = 2
 
     # Here's the loophole
     object.__setattr__(y, "a", 2)
@@ -219,7 +221,7 @@ def test_no_annotation():
 
     X()
     with pytest.raises(TypeError, match=r"__init__\(\) got an unexpected keyword argument 'a'"):
-        X(a=11)
+        cast(Any, X)(a=11)
 
 
 def test_asdict():
@@ -370,17 +372,17 @@ def test_replace():
         def d(self):
             return self.a
 
-    y = Y(a=1, e=11)
-    y = chz.replace(y, a=2)
-    y = chz.replace(y, e=12)
+    y_with_e = cast(Any, Y)(a=1, e=11)
+    y_with_e = chz.replace(y_with_e, a=2)
+    y_with_e = chz.replace(y_with_e, e=12)
     with pytest.raises(TypeError, match=r"__init__\(\) got an unexpected keyword argument 'b'"):
-        chz.replace(y, b=1)
+        chz.replace(y_with_e, b=1)
     with pytest.raises(TypeError, match=r"__init__\(\) got an unexpected keyword argument 'c'"):
-        chz.replace(y, c=1)
+        chz.replace(y_with_e, c=1)
     with pytest.raises(TypeError, match=r"__init__\(\) got an unexpected keyword argument 'd'"):
-        chz.replace(y, d=1)
+        chz.replace(y_with_e, d=1)
     with pytest.raises(TypeError, match=r"__init__\(\) got an unexpected keyword argument 'X_e'"):
-        chz.replace(y, X_e=1)
+        chz.replace(y_with_e, X_e=1)
 
 
 def test_repr():
@@ -399,7 +401,7 @@ def test_repr():
         def seed1(self):
             return self.X_seed1 + 10
 
-    assert repr(Y(seed1=1)) == "test_repr.<locals>.Y(seed1=1)"
+    assert repr(cast(Any, Y)(seed1=1)) == "test_repr.<locals>.Y(seed1=1)"
 
     @chz.chz
     class Z:
@@ -420,7 +422,7 @@ def test_eq():
     z = X(a=1, b=3)
     assert x == y
     assert x != z
-    assert x != 1
+    assert x.__eq__(1) is NotImplemented
 
 
 def test_hash():
@@ -483,7 +485,7 @@ def test_hash():
             return [self.X_a]
 
     with pytest.raises(TypeError):
-        hash(T(a=1))
+        hash(cast(Any, T)(a=1))
 
     @chz.chz
     class U:
@@ -493,7 +495,7 @@ def test_hash():
         def a(self):
             return tuple(self.X_a)
 
-    hash(U(a=[1, 2, 3]))
+    hash(cast(Any, U)(a=[1, 2, 3]))
 
 
 def test_blueprint_values():
@@ -577,7 +579,7 @@ def test_blueprint_values():
     class U:
         value: int = chz.field(x_type=str, blueprint_cast=int)
 
-    u = U(value="7")
+    u = U(value=cast(Any, "7"))
 
     # The type of the blueprint should be the one we are supposed to pass in the blueprint
     # Not the one after instantiation
@@ -695,8 +697,8 @@ def test_blueprint_values_variadic():
         list_a: list[A]
         dict_a: dict[str, A]
 
-    main = Main(list_a=[A(a=1), B(a=2, b=3)], dict_a={"a": A(a=4), "b": B(a=5, b=6)})
-    values = chz.beta_to_blueprint_values(main)
+    main_base = Main(list_a=[A(a=1), B(a=2, b=3)], dict_a={"a": A(a=4), "b": B(a=5, b=6)})
+    values = chz.beta_to_blueprint_values(main_base)
     assert values == {
         "list_a.0": A,
         "list_a.0.a": 1,
@@ -709,15 +711,15 @@ def test_blueprint_values_variadic():
         "dict_a.b.a": 5,
         "dict_a.b.b": 6,
     }
-    assert chz.Blueprint(Main).apply(values).make() == main
+    assert chz.Blueprint(Main).apply(values).make() == main_base
 
     @chz.chz
-    class Main:
+    class MainUnion:
         list_a: list[A | int]
         dict_a: dict[str, A | int]
 
-    main = Main(list_a=[A(a=1), 2], dict_a={"a": A(a=4), "b": 5})
-    values = chz.beta_to_blueprint_values(main)
+    main_union = MainUnion(list_a=[A(a=1), 2], dict_a={"a": A(a=4), "b": 5})
+    values = chz.beta_to_blueprint_values(main_union)
     assert values == {
         "list_a.0": A,
         "list_a.0.a": 1,
@@ -726,15 +728,15 @@ def test_blueprint_values_variadic():
         "dict_a.a.a": 4,
         "dict_a.b": 5,
     }
-    assert chz.Blueprint(Main).apply(values).make() == main
+    assert chz.Blueprint(MainUnion).apply(values).make() == main_union
 
-    main = Main(list_a=[1, 2], dict_a={"a": 3, "b": 4})
-    values = chz.beta_to_blueprint_values(main)
+    main_union_plain = MainUnion(list_a=[1, 2], dict_a={"a": 3, "b": 4})
+    values = chz.beta_to_blueprint_values(main_union_plain)
     assert values == {
         "list_a": [1, 2],
         "dict_a": {"a": 3, "b": 4},
     }
-    assert chz.Blueprint(Main).apply(values).make() == main
+    assert chz.Blueprint(MainUnion).apply(values).make() == main_union_plain
 
 
 def test_blueprint_values_skip_defaults():
@@ -809,7 +811,7 @@ def test_duplicate_fields():
     @chz.chz
     class X:
         a: int
-        a: int  # noqa: PIE794
+        a: int  # type: ignore[no-redef]  # noqa: PIE794
 
     X(a=1)
 
@@ -819,7 +821,7 @@ def test_no_type_annotation_on_field():
 
         @chz.chz
         class X:
-            a = chz.field(default=0)
+            a = chz.field(default=0)  # pyright: ignore[reportGeneralTypeIssues]
 
 
 def test_logical_name():
@@ -832,15 +834,16 @@ def test_logical_name():
         def seed1(self):
             return self.X_seed1 + 100
 
-    assert len(X.__chz_fields__) == 2
-    assert X.__chz_fields__["seed1"].logical_name == "seed1"
-    assert X.__chz_fields__["seed2"].logical_name == "seed2"
+    chz_fields = cast(Any, X).__chz_fields__
+    assert len(chz_fields) == 2
+    assert chz_fields["seed1"].logical_name == "seed1"
+    assert chz_fields["seed2"].logical_name == "seed2"
 
-    x = X(seed1=1, seed2=2)
+    x = cast(Any, X)(seed1=1, seed2=2)
     assert x.seed1 == 101
-    assert x.X_seed1 == 1
+    assert getattr(x, "X_seed1") == 1
     assert x.seed2 == 2
-    assert x.X_seed2 == 2
+    assert getattr(x, "X_seed2") == 2
 
 
 def test_init_property():
@@ -911,7 +914,7 @@ def test_init_property_top_level():
         @chz.chz
         class B:
             a: int
-            b: int = chz.init_property(lambda self: self.a + 1)  # with type annotation
+            b: int = cast(int, chz.init_property(lambda self: self.a + 1))  # with type annotation
 
 
 def test_default_init_property():
@@ -919,7 +922,7 @@ def test_default_init_property():
     class A:
         attr: int
 
-    a = A(attr=1)
+    a = cast(Any, A)(attr=1)
     assert a.__dict__ == {"X_attr": 1, "attr": 1}
     assert a.attr == 1
     assert a.__dict__ == {"X_attr": 1, "attr": 1}
@@ -934,8 +937,8 @@ def test_init_property_x_field():
         def attr(self):
             return self.X_attr + 1
 
-    a = A(attr=1)
-    assert a.X_attr == 1
+    a = cast(Any, A)(attr=1)
+    assert getattr(a, "X_attr") == 1
     assert a.attr == 2
     assert a.__dict__ == {"X_attr": 1, "attr": 2}
 
@@ -961,7 +964,7 @@ def test_conflicting_superclass_no_fields_in_base():
 
         @chz.chz
         class A1(BaseA):
-            method: int
+            method: int  # type: ignore[assignment]
 
     with pytest.raises(
         ValueError,
@@ -979,7 +982,7 @@ def test_conflicting_superclass_no_fields_in_base():
 
         @chz.chz
         class A2(BaseA):
-            prop: int
+            prop: int  # pyright: ignore[reportIncompatibleMethodOverride]
 
     with pytest.raises(
         ValueError,
@@ -997,7 +1000,7 @@ def test_conflicting_superclass_no_fields_in_base():
 
         @chz.chz
         class A3(BaseA):
-            init_prop: int
+            init_prop: int  # pyright: ignore[reportIncompatibleVariableOverride]
 
         # We could consider allowing this. In which case, you want:
         # assert A3(init_prop=2).X_init_prop == 2
@@ -1018,41 +1021,41 @@ def test_conflicting_superclass_field_in_base():
     class BaseB:
         field: int = 0
 
-    assert BaseB().X_field == 0
+    assert getattr(BaseB(), "X_field") == 0
     assert BaseB().field == 0
 
     @chz.chz
     class B1(BaseB):
         X_field: int = 1
 
-    assert B1().X_field == 1
+    assert getattr(B1(), "X_field") == 1
     assert B1().field == 1
 
     @chz.chz
     class B2(BaseB):
         X_field: int = 1
 
-        @chz.init_property
-        def field(self):
-            return self.X_field + 10
+        @chz.init_property  # type: ignore[misc]  # pyright: ignore[reportIncompatibleVariableOverride]
+        def field(self):  # pyright: ignore[reportIncompatibleVariableOverride]
+            return getattr(self, "X_field") + 10
 
-    assert B2().X_field == 1
+    assert getattr(B2(), "X_field") == 1
     assert B2().field == 11
 
     @chz.chz
     class B3(BaseB):
-        @chz.init_property
-        def field(self):
-            return self.X_field + 100
+        @chz.init_property  # type: ignore[misc]  # pyright: ignore[reportIncompatibleVariableOverride]
+        def field(self):  # pyright: ignore[reportIncompatibleVariableOverride]
+            return getattr(self, "X_field") + 100
 
-    assert B3().X_field == 0
+    assert getattr(B3(), "X_field") == 0
     assert B3().field == 100
 
     @chz.chz
     class B4(BaseB):
         field: int = 1
 
-    assert B4().X_field == 1
+    assert getattr(B4(), "X_field") == 1
     assert B4().field == 1
 
 
@@ -1065,14 +1068,14 @@ def test_conflicting_superclass_x_field_in_base():
         def field(self):
             return self.X_field + 10
 
-    assert BaseC().X_field == 0
+    assert getattr(BaseC(), "X_field") == 0
     assert BaseC().field == 10
 
     @chz.chz
     class C1(BaseC):
         X_field: int = 1
 
-    assert C1().X_field == 1
+    assert getattr(C1(), "X_field") == 1
     assert C1().field == 11
 
     @chz.chz
@@ -1081,14 +1084,14 @@ def test_conflicting_superclass_x_field_in_base():
         def field(self):
             return self.X_field + 100
 
-    assert C2().X_field == 0
+    assert getattr(C2(), "X_field") == 0
     assert C2().field == 100
 
     with pytest.raises(ValueError, match="little unsure of what the semantics should be here"):
 
         @chz.chz
         class C3(BaseC):
-            field: int = 1
+            field: int = 1  # pyright: ignore[reportIncompatibleVariableOverride]
 
         # assert C3().X_field == 1
         # Should this be 11 or 1?
@@ -1103,9 +1106,9 @@ def test_field_clobbering_in_same_class():
 
         @chz.chz
         class X:
-            a: int = 1
+            a: int = 1  # pyright: ignore[reportRedeclaration, reportAssignmentType]
 
-            @chz.init_property
+            @chz.init_property  # type: ignore[no-redef]
             def a(self):
                 return 1
 
@@ -1113,9 +1116,9 @@ def test_field_clobbering_in_same_class():
 
         @chz.chz
         class Y:
-            a: int = 1
+            a: int = 1  # pyright: ignore[reportRedeclaration, reportAssignmentType]
 
-            def a(self):
+            def a(self):  # type: ignore[no-redef]
                 return 1
 
     @chz.chz
@@ -1140,7 +1143,7 @@ def test_dataclass_errors():
 
 
 def test_cloudpickle_main():
-    import cloudpickle  # noqa: F401
+    import cloudpickle  # type: ignore[import-untyped]  # noqa: F401
 
     main = """
 import chz
@@ -1193,7 +1196,7 @@ def test_protocol():
         pass
 
     # Protocol fields do not become chz fields automatically
-    Allowed()
+    cast(Any, Allowed)()
 
 
 def test_abc():
@@ -1211,7 +1214,7 @@ def test_abc():
         pass
 
     # ABC fields do not become chz fields automatically
-    Allowed()
+    cast(Any, Allowed)()
 
 
 def test_pretty_format():
@@ -1251,12 +1254,12 @@ def test_pretty_format():
         children: list[Child]
         named_children: dict[str, Child]
 
-    obj = Collection(
+    collection = Collection(
         children=[Child(name="alice", age=1)],
         named_children={"bob": Child(name="bob", age=2)},
     )
     assert (
-        pretty_format(obj, colored=False)
+        pretty_format(collection, colored=False)
         == """test_pretty_format.<locals>.Collection(
     children=[
         test_pretty_format.<locals>.Child(
@@ -1279,7 +1282,7 @@ def test_metadata():
     class X:
         a: int = chz.field(metadata={"foo": "bar"})
 
-    assert X.__chz_fields__["a"].metadata == {"foo": "bar"}
+    assert cast(Any, X).__chz_fields__["a"].metadata == {"foo": "bar"}
 
 
 def test_traverse():

@@ -97,8 +97,12 @@ def test_arg_map():
     arg_map = ArgumentMap([layer])
     arg_map.consolidate()
 
-    assert arg_map.get_kv("a.b.c.one").key == "a.b.c.one"
-    assert arg_map.get_kv("a.b.c.two").key == "a.b.c.two"
+    found = arg_map.get_kv("a.b.c.one")
+    assert found is not None
+    assert found.key == "a.b.c.one"
+    found = arg_map.get_kv("a.b.c.two")
+    assert found is not None
+    assert found.key == "a.b.c.two"
     assert arg_map.get_kv("a.b") == None
     assert arg_map.get_kv("a.b.c.zero") == None
     assert arg_map.get_kv("a.b.d") == None
@@ -128,8 +132,12 @@ def test_arg_map_wildcard():
     arg_map = ArgumentMap([layer_wildcard])
     arg_map.consolidate()
 
-    assert arg_map.get_kv("a.b.c.one").key == "a...c.one"
-    assert arg_map.get_kv("a.b.b.b.b.c.one").key == "a...c.one"
+    found = arg_map.get_kv("a.b.c.one")
+    assert found is not None
+    assert found.key == "a...c.one"
+    found = arg_map.get_kv("a.b.b.b.b.c.one")
+    assert found is not None
+    assert found.key == "a...c.one"
 
     assert arg_map.subpaths("a.b.c") == ["one", "two"]
     assert arg_map.subpaths("a.b.c.one") == [""]
@@ -167,22 +175,34 @@ def test_arg_map_wildcard():
     arg_map = ArgumentMap([layer_wildcard])
     arg_map.consolidate()
 
-    assert arg_map.get_kv("a.b.c").key == "...b.c"
-    assert arg_map.get_kv("a.c.c").key == "...c"
+    found = arg_map.get_kv("a.b.c")
+    assert found is not None
+    assert found.key == "...b.c"
+    found = arg_map.get_kv("a.c.c")
+    assert found is not None
+    assert found.key == "...c"
 
     wildcard_layer = Layer({"...bar.delta": "wildcard"}, "wild")
     qualified_layer = Layer({"foo.bar.alpha": "alpha", "foo.bar.delta": "qualified"}, "qual")
     arg_map = ArgumentMap([wildcard_layer, qualified_layer])
     arg_map.consolidate()
 
-    assert arg_map.get_kv("another.bar.delta").key == "...bar.delta"
-    assert arg_map.get_kv("foo.bar.delta").key == "foo.bar.delta"
+    found = arg_map.get_kv("another.bar.delta")
+    assert found is not None
+    assert found.key == "...bar.delta"
+    found = arg_map.get_kv("foo.bar.delta")
+    assert found is not None
+    assert found.key == "foo.bar.delta"
 
     arg_map = ArgumentMap([qualified_layer, wildcard_layer])
     arg_map.consolidate()
 
-    assert arg_map.get_kv("another.bar.delta").key == "...bar.delta"
-    assert arg_map.get_kv("foo.bar.delta").key == "...bar.delta"
+    found = arg_map.get_kv("another.bar.delta")
+    assert found is not None
+    assert found.key == "...bar.delta"
+    found = arg_map.get_kv("foo.bar.delta")
+    assert found is not None
+    assert found.key == "...bar.delta"
 
 
 def test_layer():

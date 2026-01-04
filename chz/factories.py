@@ -341,7 +341,9 @@ def _find_subclass(spec: str, superclass: TypeForm):
     assert superclass_class_origin is not type
 
     visited_subclasses = set()
-    all_subclasses = collections.deque(superclass_class_origin.__subclasses__())
+    all_subclasses: collections.deque[TypeForm] = collections.deque(
+        superclass_class_origin.__subclasses__()
+    )
     all_subclasses.appendleft(superclass)
 
     candidates = []
@@ -350,12 +352,14 @@ def _find_subclass(spec: str, superclass: TypeForm):
         if cls in visited_subclasses:
             continue
         visited_subclasses.add(cls)
-        if cls.__name__ == base:
+        cls_name = getattr(cls, "__name__", None)
+        if cls_name == base:
             assert module_name is None
             candidates.append(_maybe_generic(cls, generic, template=superclass))  # type: ignore[arg-type]
         cls_origin = getattr(cls, "__origin__", cls)
         assert cls_origin is not type
-        all_subclasses.extend(cls_origin.__subclasses__())
+        if isinstance(cls_origin, type):
+            all_subclasses.extend(cls_origin.__subclasses__())
 
     if len(candidates) == 0:
         raise MetaFromString(f"No subclass of {type_repr(superclass)} named {base!r}")

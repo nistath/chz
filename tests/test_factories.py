@@ -135,9 +135,11 @@ def test_standard_subclass_object_any():
 
         assert f.from_string("collections.abc.MutableSequence") is collections.abc.MutableSequence
 
-        f = standard(annotation=any_object, unspecified=type[object])
+        f = standard(annotation=any_object, unspecified=typing.cast(typing.Any, type[object]))
         assert f.unspecified_factory() != type[object]
-        assert f.unspecified_factory()() is object
+        factory = f.unspecified_factory()
+        assert factory is not None
+        assert factory() is object
 
         f = standard(annotation=any_object, unspecified=type)
         assert f.unspecified_factory() is type
@@ -146,7 +148,9 @@ def test_standard_subclass_object_any():
 def test_standard_type_subclass():
     f = standard(annotation=type[A])
 
-    assert f.unspecified_factory()() is A
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() is A
 
     assert f.from_string("A")() is A
     assert f.from_string("B")() is B
@@ -161,9 +165,11 @@ def test_standard_type_subclass():
 
 
 def test_standard_type_subclass_unspecified():
-    f = standard(annotation=type[A], unspecified=type[B])
+    f = standard(annotation=type[A], unspecified=typing.cast(typing.Any, type[B]))
 
-    assert f.unspecified_factory()() is B
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() is B
 
     assert f.from_string("A")() is A
     assert f.from_string("B")() is B
@@ -266,20 +272,32 @@ def test_standard_union_type():
     f = standard(annotation=type[A | X])
     assert f.unspecified_factory() == None
 
-    f = standard(annotation=type[A] | type[X], unspecified=type[B])
+    f = standard(
+        annotation=type[A] | type[X],
+        unspecified=typing.cast(typing.Any, type[B]),
+    )
     assert f.unspecified_factory() != type[B]
-    assert f.unspecified_factory()() is B
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() is B
 
-    f = standard(annotation=type[A | X], unspecified=type[B])
+    f = standard(
+        annotation=type[A | X],
+        unspecified=typing.cast(typing.Any, type[B]),
+    )
     assert f.unspecified_factory() != type[B]
-    assert f.unspecified_factory()() is B
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() is B
 
 
 def test_standard_type_generic():
     f = standard(annotation=type[list[int]])
     assert f.unspecified_factory() is not list
     assert f.unspecified_factory() != list[int]
-    assert f.unspecified_factory()() == list[int]
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() == list[int]
 
 
 def test_standard_lambda():
@@ -290,7 +308,9 @@ def test_standard_lambda():
 
 def test_standard_none():
     f = standard(annotation=None)
-    assert f.unspecified_factory()() is None
+    factory = f.unspecified_factory()
+    assert factory is not None
+    assert factory() is None
     assert f.from_string("None")() is None
 
 

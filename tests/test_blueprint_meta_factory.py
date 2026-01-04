@@ -250,11 +250,11 @@ def test_meta_factory_blueprint_unspecified_optional():
     assert chz.Blueprint(Main).apply({"...value": 1}).make() == Main(value=1, field=X(value=1))
 
     @chz.chz
-    class Main:
+    class MainNone:
         value: int = 0
         field: X | None = chz.field(blueprint_unspecified=type(None), default=None)
 
-    assert chz.Blueprint(Main).apply({"...value": 1}).make() == Main(value=1, field=None)
+    assert chz.Blueprint(MainNone).apply({"...value": 1}).make() == MainNone(value=1, field=None)
 
 
 def test_meta_factory_subclass_generic():
@@ -270,32 +270,32 @@ def test_meta_factory_subclass_generic():
 
     @chz.chz
     class Main1:
-        obj: Base
+        obj: Base[typing.Any]
 
     argv = ["obj=Base"]
-    ret = chz.entrypoint(Main1, argv=argv)
-    assert type(ret.obj) is Base
+    ret_main1 = chz.entrypoint(Main1, argv=argv)
+    assert type(ret_main1.obj) is Base
 
     argv = ["obj=Sub"]
-    ret = chz.entrypoint(Main1, argv=argv)
-    assert type(ret.obj) is Sub
+    ret_main1 = chz.entrypoint(Main1, argv=argv)
+    assert type(ret_main1.obj) is Sub
 
     @chz.chz
     class Main2:
         obj: Base[int]
 
     argv = ["obj=Base"]
-    ret = chz.entrypoint(Main2, argv=argv)
-    assert type(ret.obj) is Base
+    ret_main2 = chz.entrypoint(Main2, argv=argv)
+    assert type(ret_main2.obj) is Base
 
     argv = ["obj=Sub"]
-    ret = chz.entrypoint(Main2, argv=argv)
-    assert type(ret.obj) is Sub
+    ret_main2 = chz.entrypoint(Main2, argv=argv)
+    assert type(ret_main2.obj) is Sub
 
     argv = ["obj=Sub", "obj.value=3"]
-    ret = chz.entrypoint(Main2, argv=argv)
-    assert type(ret.obj) is Sub
-    assert ret.obj.value == 3
+    ret_main2 = chz.entrypoint(Main2, argv=argv)
+    assert type(ret_main2.obj) is Sub
+    assert ret_main2.obj.value == 3
 
 
 def test_meta_factory_optional():
@@ -361,30 +361,30 @@ def test_meta_factory_function_lambda():
     import calendar
 
     @chz.chz
-    class Main:
+    class MainFunc:
         a: A = chz.field(meta_factory=chz.factories.function(), default=object())
         cal: calendar.Calendar = chz.field(
             meta_factory=chz.factories.function(default_module="calendar"), default=object()
         )
 
     argv = ["a=lambda: A()", "cal=lambda d: Calendar(int(d))", "cal.d=3"]
-    ret = chz.entrypoint(Main, argv=argv)
-    assert type(ret.a) is A
-    assert type(ret.cal) is calendar.Calendar
-    assert ret.cal.firstweekday == 3
+    ret_func = chz.entrypoint(MainFunc, argv=argv)
+    assert type(ret_func.a) is A
+    assert type(ret_func.cal) is calendar.Calendar
+    assert ret_func.cal.firstweekday == 3
 
     @chz.chz
-    class Main:
+    class MainStandard:
         a: A = chz.field(default=object())
         cal: calendar.Calendar = chz.field(
             meta_factory=chz.factories.standard(default_module="calendar"), default=object()
         )
 
     argv = ["a=lambda: A()", "cal=lambda d: Calendar(int(d))", "cal.d=3"]
-    ret = chz.entrypoint(Main, argv=argv)
-    assert type(ret.a) is A
-    assert type(ret.cal) is calendar.Calendar
-    assert ret.cal.firstweekday == 3
+    ret_standard = chz.entrypoint(MainStandard, argv=argv)
+    assert type(ret_standard.a) is A
+    assert type(ret_standard.cal) is calendar.Calendar
+    assert ret_standard.cal.firstweekday == 3
 
 
 def test_meta_factory_type_subclass():

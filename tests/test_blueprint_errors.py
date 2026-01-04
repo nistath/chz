@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 import chz
@@ -7,7 +9,7 @@ from chz.blueprint import ConstructionException, ExtraneousBlueprintArg
 def test_target_bad_signature():
     def bad(a: int, b: str): ...
 
-    bad.__text_signature__ = "not a signature"
+    setattr(bad, "__text_signature__", "not a signature")
 
     with pytest.raises(ConstructionException, match=r"Failed to get signature for bad"):
         chz.entrypoint(bad, argv=[])
@@ -15,7 +17,7 @@ def test_target_bad_signature():
 
 def test_target_just_plain_old_bad():
     with pytest.raises(ValueError, match="42 is not callable"):
-        chz.entrypoint(42, argv=[])
+        chz.entrypoint(cast(Any, 42), argv=[])
 
 
 def test_target_no_params_extraneous():

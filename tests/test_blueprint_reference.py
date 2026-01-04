@@ -161,10 +161,10 @@ def test_blueprint_reference_cycle():
         chz.Blueprint(Main).apply_from_argv(["a@=b", "b@=a"]).make()
 
     @chz.chz
-    class Main:
+    class MainSingle:
         a: int
 
     with pytest.raises(
         MissingBlueprintArg, match=r"Missing required arguments for parameter\(s\): a"
     ):
-        chz.Blueprint(Main).apply_from_argv(["a@=a"]).make()
+        chz.Blueprint(MainSingle).apply_from_argv(["a@=a"]).make()

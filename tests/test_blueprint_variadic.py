@@ -175,7 +175,7 @@ def test_variadic_dict_non_int_or_str_key():
 def test_variadic_dict_unannotated():
     @chz.chz
     class MainDict:
-        xs: dict
+        xs: dict[str, typing.Any]
 
     assert chz.Blueprint(MainDict).apply({"xs.0": "a", "xs.first": 123}).make() == MainDict(
         xs={"0": "a", "first": 123}

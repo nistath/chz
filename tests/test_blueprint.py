@@ -1,3 +1,5 @@
+from typing import Any, cast
+
 import pytest
 
 import chz
@@ -554,7 +556,7 @@ def test_logical_name_blueprint():
     x = chz.Blueprint(X).apply({"seed1": 1, "seed2": 2}).make()
     assert x.seed1 == 101
     assert x.seed2 == 102
-    assert x == X(seed1=1, seed2=2)
+    assert x == cast(Any, X)(seed1=1, seed2=2)
 
 
 def test_blueprint_unpack_kwargs():
@@ -727,13 +729,13 @@ def test_blueprint_unspecified_functools_partial():
         missing: int
 
     @chz.chz
-    class Main:
+    class MainMissing:
         a: A = chz.field(blueprint_unspecified=functools.partial(C, field=2))
 
     with pytest.raises(
         MissingBlueprintArg, match=r"Missing required arguments for parameter\(s\): a.missing"
     ):
-        chz.Blueprint(Main).make()
+        chz.Blueprint(MainMissing).make()
 
 
 def test_blueprint_positional_only():

@@ -31,10 +31,13 @@ import typing
 
 import typing_extensions
 
+_GenericAlias = getattr(typing, "_GenericAlias", ())
+_TypedDictMeta = getattr(typing, "_TypedDictMeta", ())
+_TypedDictMetaExt = getattr(typing_extensions, "_TypedDictMeta", ())
 
 def type_repr(typ) -> str:
     # Similar to typing._type_repr
-    if isinstance(typ, (types.GenericAlias, typing._GenericAlias)):
+    if isinstance(typ, (types.GenericAlias, _GenericAlias)):
         if typ.__origin__.__module__ in {"typing", "typing_extensions", "collections.abc"}:
             if typ.__origin__ is collections.abc.Callable:
                 return repr(typ).removeprefix("collections.abc.").removeprefix("typing.")
@@ -72,8 +75,9 @@ def _approx_type_to_bytes(t) -> bytes:
     # `class float: ...` will look the same.
     # If you need something more discerning, maybe just use pickle? Although note that pickle
     # doesn't work on at least forward refs and non-module level typevars
-    origin = getattr(t, "__origin__", None)
-    args = getattr(t, "__args__", ())
+    t_any = typing.cast(typing.Any, t)
+    origin = getattr(t_any, "__origin__", None)
+    args = getattr(t_any, "__args__", ())
 
     if origin is None:
         if isinstance(t, type):
@@ -132,8 +136,9 @@ def eval_in_context(annot: str, obj: object) -> typing.Any:
 
     if unwrap is not None:
         while True:
-            if hasattr(unwrap, "__wrapped__"):
-                unwrap = unwrap.__wrapped__
+            wrapped = getattr(unwrap, "__wrapped__", None)
+            if wrapped is not None:
+                unwrap = wrapped
                 continue
             if isinstance(unwrap, functools.partial):
                 unwrap = unwrap.func
@@ -165,23 +170,48 @@ else:
     typing_Never = (typing.NoReturn, typing_extensions.NoReturn, typing_extensions.Never)
 
 
-TypeForm = object
+TypeForm: typing.TypeAlias = object
 InstantiableType: typing.TypeAlias = type | types.GenericAlias  # | typing._GenericAlias
 
 
 def is_instantiable_type(t: TypeForm) -> typing.TypeGuard[InstantiableType]:
-    origin = getattr(t, "__origin__", t)
+    origin = _get_origin(t)
     return isinstance(origin, type) and origin is not type
+
+
+def _get_origin(t: TypeForm) -> object:
+    return getattr(typing.cast(typing.Any, t), "__origin__", t)
+
+
+def _get_args(t: TypeForm) -> tuple[TypeForm, ...]:
+    return getattr(typing.cast(typing.Any, t), "__args__", ())
+
+
+def _get_args_or_none(t: TypeForm) -> tuple[TypeForm, ...] | None:
+    return getattr(typing.cast(typing.Any, t), "__args__", None)
+
+
+def _is_protocol(t: TypeForm) -> bool:
+    return isinstance(t, type) and typing_extensions.is_protocol(t)
+
+
+def _is_any_subclass(cls: type) -> bool:
+    try:
+        return issubclass(cls, typing.cast(type, typing_extensions.Any)) or (
+            sys.version_info >= (3, 11) and issubclass(cls, typing.cast(type, typing.Any))
+        )
+    except TypeError:
+        return False
 
 
 def is_union_type(t: TypeForm) -> bool:
     # This has gotten a little messy with Python 3.14
-    origin = getattr(t, "__origin__", t)
+    origin = _get_origin(t)
     return origin is typing.Union or isinstance(t, types.UnionType) or t is types.UnionType
 
 
 def is_typed_dict(t: TypeForm) -> bool:
-    return isinstance(t, (typing._TypedDictMeta, typing_extensions._TypedDictMeta))
+    return isinstance(t, (_TypedDictMeta, _TypedDictMetaExt))
 
 
 class CastError(Exception):
@@ -206,7 +236,7 @@ def _module_getattr(mod: types.ModuleType, attr: str) -> typing.Any:
 
 def _sort_for_union_preference(typs: tuple[TypeForm, ...]):
     def sort_key(typ):
-        typ = getattr(typ, "__origin__", typ)
+        typ = _get_origin(typ)
         if typ is str:
             # sort str to last, because anything can be cast to str
             return 1
@@ -223,25 +253,27 @@ def _sort_for_union_preference(typs: tuple[TypeForm, ...]):
 
 
 def is_args_unpack(t: TypeForm) -> bool:
-    return getattr(t, "__unpacked__", False) or getattr(t, "__origin__", t) in {
+    t_any = typing.cast(typing.Any, t)
+    return getattr(t_any, "__unpacked__", False) or _get_origin(t) in {
         typing.Unpack,
         typing_extensions.Unpack,
     }
 
 
 def is_kwargs_unpack(t: TypeForm) -> bool:
-    return getattr(t, "__origin__", t) in {typing.Unpack, typing_extensions.Unpack}
+    return _get_origin(t) in {typing.Unpack, typing_extensions.Unpack}
 
 
 def _unpackable_arg_length(t: TypeForm) -> tuple[int, bool]:
     item_args = None
-    if getattr(t, "__unpacked__", False):
-        assert t.__origin__ is tuple  # TODO
-        item_args = t.__args__
-    elif getattr(t, "__origin__", t) in {typing.Unpack, typing_extensions.Unpack}:
-        assert len(t.__args__) == 1
-        assert t.__args__[0].__origin__ is tuple
-        item_args = t.__args__[0].__args__
+    t_any = typing.cast(typing.Any, t)
+    if getattr(t_any, "__unpacked__", False):
+        assert _get_origin(t) is tuple  # TODO
+        item_args = t_any.__args__
+    elif _get_origin(t) in {typing.Unpack, typing_extensions.Unpack}:
+        assert len(t_any.__args__) == 1
+        assert _get_origin(t_any.__args__[0]) is tuple
+        item_args = t_any.__args__[0].__args__
     else:
         return (1, False)
 
@@ -278,12 +310,14 @@ def _cast_unpacked_tuples(
             if arg_unbounded:
                 arg_length += len(inst_items) - min_length
                 min_length = len(inst_items)
-            if getattr(arg, "__origin__", arg) in {typing.Unpack, typing_extensions.Unpack}:
-                assert len(arg.__args__) == 1
-                assert arg.__args__[0].__origin__ is tuple
-                arg = arg.__args__[0]
+            arg_any = typing.cast(typing.Any, arg)
+            if _get_origin(arg) in {typing.Unpack, typing_extensions.Unpack}:
+                assert len(arg_any.__args__) == 1
+                assert _get_origin(arg_any.__args__[0]) is tuple
+                arg = arg_any.__args__[0]
+                arg_any = typing.cast(typing.Any, arg)
 
-            arg = arg.__args__
+            arg = arg_any.__args__
             if len(arg) == 0:
                 ret.extend(inst_items[i : i + arg_length])
             elif len(arg) == 2 and arg[-1] is ...:
@@ -302,10 +336,10 @@ def _cast_unpacked_tuples(
 
 
 def _simplistic_try_cast(inst_str: str, typ: TypeForm):
-    origin = getattr(typ, "__origin__", typ)
+    origin = _get_origin(typ)
     if is_union_type(origin):
         # sort str to last spot
-        args = _sort_for_union_preference(getattr(typ, "__args__", ()))
+        args = _sort_for_union_preference(_get_args(typ))
         for arg in args:
             try:
                 return _simplistic_try_cast(inst_str, arg)
@@ -339,7 +373,7 @@ def _simplistic_try_cast(inst_str: str, typ: TypeForm):
 
     if origin is typing.Literal or origin is typing_extensions.Literal:
         values_by_type = {}
-        for arg in getattr(typ, "__args__", ()):
+        for arg in _get_args(typ):
             values_by_type.setdefault(type(arg), []).append(arg)
         for literal_typ, literal_values in values_by_type.items():
             try:
@@ -379,7 +413,7 @@ def _simplistic_try_cast(inst_str: str, typ: TypeForm):
     if origin is list or origin is collections.abc.Sequence or origin is collections.abc.Iterable:
         if not inst_str:
             return []
-        args = getattr(typ, "__args__", ())
+        args = _get_args(typ)
         item_type = args[0] if args else typing.Any
 
         if inst_str[0] in {"[", "("}:
@@ -398,7 +432,7 @@ def _simplistic_try_cast(inst_str: str, typ: TypeForm):
         return tuple(ret)
 
     if origin is tuple:
-        args = getattr(typ, "__args__", ())
+        args = _get_args(typ)
         inst_items = inst_str.split(",") if inst_str else []
         if len(args) == 0:
             return tuple(inst_items)
@@ -460,7 +494,7 @@ def _simplistic_try_cast(inst_str: str, typ: TypeForm):
             )
 
     if "torch" in sys.modules:
-        import torch
+        torch = importlib.import_module("torch")
 
         if origin is torch.dtype:
             value = getattr(torch, inst_str, None)
@@ -512,8 +546,9 @@ def _simplistic_try_cast(inst_str: str, typ: TypeForm):
         if origin is pathlib.Path:
             return pathlib.Path(inst_str)
 
-    if hasattr(origin, "__chz_cast__"):
-        return origin.__chz_cast__(inst_str)
+    chz_cast = getattr(origin, "__chz_cast__", None)
+    if chz_cast is not None:
+        return chz_cast(inst_str)
 
     if not isinstance(origin, type):
         raise CastError(f"Unrecognised type object {type_repr(typ)}")
@@ -552,10 +587,10 @@ class _SignatureOf:
 
 
 def is_subtype(left: TypeForm, right: TypeForm) -> bool:
-    left_origin = getattr(left, "__origin__", left)
-    left_args = getattr(left, "__args__", ())
-    right_origin = getattr(right, "__origin__", right)
-    right_args = getattr(right, "__args__", ())
+    left_origin = _get_origin(left)
+    left_args = _get_args(left)
+    right_origin = _get_origin(right)
+    right_args = _get_args(right)
 
     if left_origin is typing.Any or left_origin is typing_extensions.Any:
         return True
@@ -606,20 +641,20 @@ def is_subtype(left: TypeForm, right: TypeForm) -> bool:
             return is_subtype(left_origin, right_origin.__bound__)
         return True
 
-    if typing_extensions.is_protocol(left) and typing_extensions.is_protocol(right):
-        left_attrs = typing_extensions.get_protocol_members(left)
-        right_attrs = typing_extensions.get_protocol_members(right)
+    if _is_protocol(left) and _is_protocol(right):
+        left_attrs = typing_extensions.get_protocol_members(typing.cast(type, left))
+        right_attrs = typing_extensions.get_protocol_members(typing.cast(type, right))
         if not right_attrs.issubset(left_attrs):
             return False
 
         # TODO: this is incorrect
         return True
 
-    if typing_extensions.is_protocol(right):
+    if _is_protocol(right):
         if not isinstance(left_origin, type):
             return False
 
-        right_attrs = typing_extensions.get_protocol_members(right)
+        right_attrs = typing_extensions.get_protocol_members(typing.cast(type, right))
         if not all(hasattr(left_origin, attr) for attr in right_attrs):
             return False
 
@@ -719,6 +754,8 @@ def is_subtype(left: TypeForm, right: TypeForm) -> bool:
         return True
 
     if left_origin is collections.abc.Callable and right_origin is collections.abc.Callable:
+        if not left_args or not right_args:
+            return True
         *left_params, left_ret = left_args
         *right_params, right_ret = right_args
         if len(left_params) != len(right_params):
@@ -731,10 +768,12 @@ def is_subtype(left: TypeForm, right: TypeForm) -> bool:
         )
 
     if is_typed_dict(left_origin) and is_typed_dict(right_origin):
-        if not right_origin.__required_keys__.issubset(left_origin.__required_keys__):
+        left_td = typing.cast(typing.Any, left_origin)
+        right_td = typing.cast(typing.Any, right_origin)
+        if not right_td.__required_keys__.issubset(left_td.__required_keys__):
             return False
-        left_hints = typing_extensions.get_type_hints(left_origin)
-        right_hints = typing_extensions.get_type_hints(right_origin)
+        left_hints = typing_extensions.get_type_hints(left_td)
+        right_hints = typing_extensions.get_type_hints(right_td)
         for k, v in right_hints.items():
             if k not in left_hints:
                 return False
@@ -743,15 +782,17 @@ def is_subtype(left: TypeForm, right: TypeForm) -> bool:
                 return False
         return True
 
+    if is_typed_dict(right_origin):
+        return False
+
     # TODO: handle other special forms
 
     if left_origin is right_origin and left_args == right_args:
         return True
 
-    try:
-        if not issubclass(left_origin, right_origin):
-            return False
-    except TypeError:
+    if not isinstance(left_origin, type) or not isinstance(right_origin, type):
+        return False
+    if not issubclass(left_origin, right_origin):
         return False
 
     # see comments in is_subtype_instance
@@ -816,24 +857,24 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
         if typ.__constraints__:
             # types must match exactly
             return any(
-                type(inst) is getattr(c, "__origin__", c) and is_subtype_instance(inst, c)
+                type(inst) is _get_origin(c) and is_subtype_instance(inst, c)
                 for c in typ.__constraints__
             )
         if typ.__bound__:
             return is_subtype_instance(inst, typ.__bound__)
         return True
 
-    if isinstance(typ, typing.NewType):
-        return isinstance(inst, typ.__supertype__)
+    if hasattr(typ, "__supertype__"):
+        return isinstance(inst, typing.cast(typing.Any, typ).__supertype__)
 
     origin: typing.Any
     args: typing.Any
     if sys.version_info >= (3, 10) and isinstance(typ, types.UnionType):
         origin = typing.Union
     else:
-        origin = getattr(typ, "__origin__", typ)
+        origin = _get_origin(typ)
 
-    args = getattr(typ, "__args__", ())
+    args = _get_args(typ)
     del typ
 
     if origin is typing.Union:
@@ -848,11 +889,12 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
         if not isinstance(inst, dict):
             return False
 
-        for k, v in typing_extensions.get_type_hints(origin).items():
+        origin_td = typing.cast(typing.Any, origin)
+        for k, v in typing_extensions.get_type_hints(origin_td).items():
             if k in inst:
                 if not is_subtype_instance(inst[k], v):
                     return False
-            elif k in origin.__required_keys__:
+            elif k in origin_td.__required_keys__:
                 return False
         return True
 
@@ -867,19 +909,20 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
         except ValidationError:
             return False
 
-    if typing_extensions.is_protocol(origin):
-        if getattr(origin, "_is_runtime_protocol", False):
-            return isinstance(inst, origin)
-        if origin in type(inst).__mro__:
+    if _is_protocol(origin):
+        origin_type = typing.cast(type, origin)
+        if getattr(origin_type, "_is_runtime_protocol", False):
+            return isinstance(inst, origin_type)
+        if origin_type in type(inst).__mro__:
             return True
-        annotations = typing_extensions.get_type_hints(origin)
-        for attr in sorted(typing_extensions.get_protocol_members(origin)):
+        annotations = typing_extensions.get_type_hints(origin_type)
+        for attr in sorted(typing_extensions.get_protocol_members(origin_type)):
             if not hasattr(inst, attr):
                 return False
             if attr in annotations:
                 if not is_subtype_instance(getattr(inst, attr), annotations[attr]):
                     return False
-            elif callable(getattr(origin, attr)):
+            elif callable(getattr(origin_type, attr)):
                 if attr == "__call__" and isinstance(inst, (type, types.FunctionType)):
                     # inst will have a better inspect.signature than inst.__call__
                     inst_attr = inst
@@ -889,13 +932,13 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
                 if not callable(inst_attr):
                     return False
                 try:
-                    signature = _SignatureOf(getattr(origin, attr), strip_self=True)
+                    signature = _SignatureOf(getattr(origin_type, attr), strip_self=True)
                 except ValueError:
                     continue
                 if not is_subtype_instance(inst_attr, signature):
                     return False
             else:
-                raise AssertionError(f"Unexpected protocol member {attr} for {origin}")
+                raise AssertionError(f"Unexpected protocol member {attr} for {origin_type}")
         return True
 
     if isinstance(origin, _SignatureOf):
@@ -922,9 +965,7 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
 
         if inst in typing_Never:
             return True
-        if issubclass(type(inst), typing_extensions.Any) or (
-            sys.version_info >= (3, 11) and issubclass(type(inst), typing.Any)
-        ):
+        if _is_any_subclass(type(inst)):
             return True
         return False
 
@@ -962,6 +1003,8 @@ def is_subtype_instance(inst: typing.Any, typ: TypeForm) -> bool:
         try:
             inst_sig = inspect.signature(inst)
         except ValueError:
+            return True
+        if not args:
             return True
         *params, ret = args
         if params != [...]:
@@ -1016,7 +1059,7 @@ def simplified_union(types):
 
     union_types = []
     for typ in types:
-        if getattr(typ, "__args__", None) is None and any(
+        if _get_args_or_none(typ) is None and any(
             is_subtype(typ, member) for member in union_types
         ):
             continue
@@ -1025,7 +1068,7 @@ def simplified_union(types):
     types = union_types
     union_types = []
     for typ in reversed(types):
-        if getattr(typ, "__args__", None) is None and any(
+        if _get_args_or_none(typ) is None and any(
             is_subtype(typ, member) for member in union_types
         ):
             continue
@@ -1038,20 +1081,25 @@ def _simplistic_type_of_value(value: object) -> TypeForm:
     # TODO: maybe remove this? Its current use is in diagnostics (for providing the actual type),
     # but is_subtype_instance is in a position to provide better diagnostics
     if hasattr(type(value), "__class_getitem__"):
+        value_type = type(value)
+        value_type_any = typing.cast(typing.Any, value_type)
         if isinstance(value, collections.abc.Mapping) and typing.Generic not in type(value).__mro__:
-            return type(value)[
+            return value_type_any[
                 simplified_union([_simplistic_type_of_value(k) for k in value.keys()]),
                 simplified_union([_simplistic_type_of_value(v) for v in value.values()]),
             ]
         if isinstance(value, tuple):
             if len(value) <= 10:
-                return type(value)[tuple(_simplistic_type_of_value(v) for v in value)]
-            return type(value)[simplified_union([_simplistic_type_of_value(v) for v in value]), ...]
+                return value_type_any[tuple(_simplistic_type_of_value(v) for v in value)]
+            return value_type_any[
+                simplified_union([_simplistic_type_of_value(v) for v in value]),
+                ...,
+            ]
         if (
             isinstance(value, collections.abc.Iterable)
             and typing.Generic not in type(value).__mro__
         ):
-            return type(value)[simplified_union([_simplistic_type_of_value(v) for v in value])]
+            return value_type_any[simplified_union([_simplistic_type_of_value(v) for v in value])]
 
     if isinstance(value, type):
         return type[value]

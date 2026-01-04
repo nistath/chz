@@ -25,17 +25,15 @@ import sys
 import types
 import typing
 from collections.abc import Collection, Mapping
-from typing import TYPE_CHECKING, Any, Callable, Iterable, TypeVar
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterable, Protocol, TypeVar, cast
 
 import typing_extensions
 
 from chz.field import Field
 from chz.tiepin import type_repr
-from chz.util import MISSING
+from chz.util import MISSING, MISSING_TYPE
 
 FrozenInstanceError = dataclasses.FrozenInstanceError
-
-_T = TypeVar("_T")
 
 
 _INIT_ALTERNATIVES: str = (
@@ -45,6 +43,16 @@ _INIT_ALTERNATIVES: str = (
     "or add an `init_property` to the class.\n"
     "See the docs for more details."
 )
+
+
+class _ChzObject(Protocol):
+    __chz_fields__: ClassVar[dict[str, Field]]
+
+_T = TypeVar("_T")
+
+
+def _as_chz(obj: object) -> _ChzObject:
+    return cast(_ChzObject, obj)
 
 
 def _create_fn(
@@ -254,6 +262,8 @@ def pretty_format(obj: Any, colored: bool = True) -> str:
     if not is_chz(obj):
         return repr(obj)
 
+    chz_obj = _as_chz(obj)
+
     cls_name = obj.__class__.__qualname__
     out = f"{bold}{cls_name}({reset}\n"
 
@@ -267,18 +277,18 @@ def pretty_format(obj: Any, colored: bool = True) -> str:
             assert field._repr is True
             r = lambda o: pretty_format(o, colored=colored)
 
-        x_val = getattr(obj, field.x_name)
-        val = getattr(obj, field.logical_name)
+        x_val = getattr(chz_obj, field.x_name)
+        val = getattr(chz_obj, field.logical_name)
         if x_val is val:
             return r(val)
         return f"{grey}{r(x_val)}  # {reset}{r(val)}{grey} (after init){reset}"
 
     field_reprs: dict[bool, list[str]] = {True: [], False: []}
-    for field in sorted(obj.__chz_fields__.values(), key=lambda f: f.logical_name):
+    for field in sorted(chz_obj.__chz_fields__.values(), key=lambda f: f.logical_name):
         if field._default is not MISSING:
-            matches_default = field._default is getattr(obj, field.x_name)
-        elif field._default_factory is not MISSING:
-            matches_default = field._default_factory() == getattr(obj, field.x_name)
+            matches_default = field._default is getattr(chz_obj, field.x_name)
+        elif not isinstance(field._default_factory, MISSING_TYPE):
+            matches_default = field._default_factory() == getattr(chz_obj, field.x_name)
         else:
             matches_default = False
 
@@ -529,7 +539,7 @@ def is_chz(c: object) -> bool:
 
 
 def chz_fields(c: object) -> dict[str, Field]:
-    return c.__chz_fields__  # type: ignore[attr-defined]
+    return _as_chz(c).__chz_fields__
 
 
 # ==============================
@@ -554,10 +564,11 @@ def replace(obj: _T, /, **changes) -> _T:
     This just constructs a new object, so for example, the generated `__init__` gets run and
     validation will work exactly as if you manually constructed the new object.
     """
-    if not hasattr(obj, "__chz_fields__"):
+    if not is_chz(obj):
         raise ValueError(f"{obj} is not a chz object")
 
-    for field in obj.__chz_fields__.values():
+    chz_obj = _as_chz(obj)
+    for field in chz_obj.__chz_fields__.values():
         if field.logical_name not in changes:
             changes[field.logical_name] = getattr(obj, field.x_name)
     return obj.__class__(**changes)
@@ -592,10 +603,11 @@ def asdict(
     exclude_set = set(exclude) if exclude is not None else None
 
     def inner(x: Any, current_exclude: Collection[str] | None = None):
-        if hasattr(x, "__chz_fields__"):
+        if is_chz(x):
+            chz_obj = _as_chz(x)
             result = {
-                k: inner(getattr(x, k))
-                for k in x.__chz_fields__
+                k: inner(getattr(chz_obj, k))
+                for k in chz_obj.__chz_fields__
                 if not current_exclude or k not in current_exclude
             }
             if include_type:
@@ -612,10 +624,10 @@ def asdict(
         else:
             return copy.deepcopy(x)
 
-    if not hasattr(obj, "__chz_fields__"):
+    if not is_chz(obj):
         raise RuntimeError(f"{obj} is not a chz object")
 
-    result = inner(obj, exclude_set)
+    result = inner(_as_chz(obj), exclude_set)
     assert type(result) is dict
     return result
 
@@ -623,10 +635,11 @@ def asdict(
 def traverse(obj: Any, obj_path: str = "") -> Iterable[tuple[str, Any]]:
     """Traverses the chz object and yields (path, value) pairs for all sub attributes recursively."""
     assert is_chz(obj)
+    chz_obj = _as_chz(obj)
 
     yield obj_path, obj
 
-    for f in obj.__chz_fields__.values():
+    for f in chz_obj.__chz_fields__.values():
         value = getattr(obj, f.logical_name)
         field_path = f"{obj_path}.{f.logical_name}" if obj_path else f.logical_name
 
@@ -684,8 +697,9 @@ def beta_to_blueprint_values(obj, skip_defaults: bool = False) -> Any:
         return parent + "." + child
 
     def inner(obj: Any, path: str):
-        if hasattr(obj, "__chz_fields__"):
-            for field_name, field_info in obj.__chz_fields__.items():
+        if is_chz(obj):
+            chz_obj = _as_chz(obj)
+            for field_name, field_info in chz_obj.__chz_fields__.items():
                 value = getattr(obj, field_info.x_name)
                 if skip_defaults and field_info._default == value:
                     continue

@@ -5,7 +5,7 @@ from unittest.mock import patch
 import pytest
 
 import chz
-from chz.blueprint import EntrypointHelpException, ExtraneousBlueprintArg
+from chz.blueprint import EntrypointHelpException, ExtraneousBlueprintArg, _blueprint
 
 
 @chz.chz
@@ -60,7 +60,7 @@ Available methods:
     ):
         chz.methods_entrypoint(Run1, argv=[])
 
-    orig_get_help = chz.blueprint._blueprint.Blueprint.get_help
+    orig_get_help = _blueprint.Blueprint.get_help
     with (
         # Disable color, which messes with the pytest.raises(..., match=...)
         patch(
@@ -93,7 +93,7 @@ Available methods:
 class RunAltSelfParam:
     name: str
 
-    def launch(run, cluster: str):
+    def launch(run, cluster: str):  # pyright: ignore[reportSelfClsParameterName]
         return ("launch", run, cluster)
 
 

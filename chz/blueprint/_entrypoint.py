@@ -5,12 +5,14 @@ import inspect
 import io
 import os
 import sys
-from typing import Any, Callable, TypeVar
+from typing import Any, Callable, Concatenate, ParamSpec, TypeVar, overload
 
 import chz
 from chz.tiepin import eval_in_context, type_repr
 
 _T = TypeVar("_T")
+_TArg = TypeVar("_TArg")
+_P = ParamSpec("_P")
 _F = TypeVar("_F", bound=Callable[..., Any])
 
 
@@ -81,9 +83,24 @@ def entrypoint(
     return chz.Blueprint(target).make_from_argv(argv, allow_hyphens=allow_hyphens)
 
 
+@overload
+def nested_entrypoint(
+    main: Callable[[_TArg], _T], *, argv: list[str] | None = None, allow_hyphens: bool = False
+) -> _T: ...
+
+
+@overload
+def nested_entrypoint(
+    main: Callable[Concatenate[_TArg, _P], _T],
+    *,
+    argv: list[str] | None = None,
+    allow_hyphens: bool = False,
+) -> _T: ...
+
+
 @exit_on_entrypoint_error
 def nested_entrypoint(
-    main: Callable[[Any], _T], *, argv: list[str] | None = None, allow_hyphens: bool = False
+    main: Callable[..., _T], *, argv: list[str] | None = None, allow_hyphens: bool = False
 ) -> _T:
     """Easy way to create a script entrypoint using chz for functions that take a chz object.
 
@@ -115,7 +132,7 @@ def methods_entrypoint(
     *,
     argv: list[str] | None = None,
     transform: Callable[[chz.Blueprint[Any], Any, str], chz.Blueprint[Any]] | None = None,
-) -> _T:
+) -> Any:
     """Easy way to create a script entrypoint using chz for methods on a class.
 
     For example, given main.py:
@@ -222,7 +239,15 @@ def _resolve_annotation(annotation: Any, func: Any) -> Any:
     return annotation
 
 
-def get_nested_target(main: Callable[[_T], object]) -> type[_T]:
+@overload
+def get_nested_target(main: Callable[Concatenate[_TArg, _P], object]) -> type[_TArg]: ...
+
+
+@overload
+def get_nested_target(main: Callable[..., object]) -> type[Any]: ...
+
+
+def get_nested_target(main: Callable[..., object]) -> type[Any]:
     """Returns the type of the first argument of a function.
 
     For example:

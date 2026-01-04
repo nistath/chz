@@ -1,4 +1,4 @@
-from typing import Any, Callable, TypedDict, TypeVar
+from typing import Any, Callable, TypedDict, TypeVar, cast
 
 import pytest
 
@@ -14,11 +14,11 @@ def test_munger():
         c: int = chz.field(munger=lambda s, v: s.X_a + 100)
 
     x = A(a=1, b=47, c=94)
-    assert x.X_a == 1
+    assert getattr(x, "X_a") == 1
     assert x.a == 111
-    assert x.X_b == 47
+    assert getattr(x, "X_b") == 47
     assert x.b == 111
-    assert x.X_c == 94
+    assert getattr(x, "X_c") == 94
     assert x.c == 101
 
 
@@ -77,15 +77,15 @@ def test_munger_combinators():
         b: int = chz.field(munger=attr_if_none("a"))
         c: int = 42
 
-    a = A(a=None, b=None)
+    a = A(a=cast(int, None), b=cast(int, None))
     assert a.a == 42
     assert a.b == 42
 
-    a = A(a=1, b=None)
+    a = A(a=1, b=cast(int, None))
     assert a.a == 1
     assert a.b == 1
 
-    a = A(a=None, b=2)
+    a = A(a=cast(int, None), b=2)
     assert a.a == 42
     assert a.b == 2
 
@@ -99,12 +99,12 @@ def test_munger_x_type():
     class A:
         a: int = chz.field(munger=lambda s, v: int(v + "0") + 1, x_type=str)
 
-    a = A(a="123")
-    assert a.X_a == "123"
+    a = A(a=cast(Any, "123"))
+    assert getattr(a, "X_a") == "123"
     assert a.a == 1231
 
     a = chz.Blueprint(A).apply({"a": chz.blueprint.Castable("456")}).make()
-    assert a.X_a == "456"
+    assert getattr(a, "X_a") == "456"
     assert a.a == 4561
 
     @chz.chz(typecheck=True)
@@ -114,7 +114,7 @@ def test_munger_x_type():
     with pytest.raises(TypeError, match="Expected X_b to be str, got int"):
         B(b=0)
 
-    B(b="0")  # TODO: this could raise
+    B(b=cast(Any, "0"))  # TODO: this could raise
 
     @chz.chz(typecheck=True)
     class C:
@@ -124,7 +124,7 @@ def test_munger_x_type():
         def c(self) -> str:
             return str(self.X_c)
 
-    assert C(c=0).c == "0"
+    assert cast(Any, C)(c=0).c == "0"
 
 
 def test_munger_freeze_dict():
@@ -147,7 +147,7 @@ def test_converter():
         a: int = chz.field(converter=if_none(lambda self: self.c))
         c: int = 42
 
-    a = A(a=None)
+    a = A(a=cast(int, None))
     assert a.a == 42
     b = A(a=3)
     assert b.a == 3
@@ -170,7 +170,7 @@ def test_converter_fn():
         a: int = chz.field(converter=lambda v, **kwargs: v or 10)
         c: int = 42
 
-    a = A(a=None)
+    a = A(a=cast(int, None))
     assert a.a == 10
 
 
@@ -190,7 +190,7 @@ def test_converter_fn_typed():
         a: int = chz.field(converter=if_none_fn(10))
         c: int = 42
 
-    a = A(a=None)
+    a = A(a=cast(int, None))
     assert a.a == 10
 
 
@@ -204,7 +204,7 @@ def test_converter_freeze_dict():
     @chz.chz
     class A:
         d: frozendict[str, int] = chz.field(converter=chz.mungers.freeze_dict())
-        d2: MyDict = chz.field(converter=chz.mungers.freeze_dict())  # type: ignore
+        d2: MyDict = chz.field(converter=cast(Any, chz.mungers.freeze_dict()))
 
-    x = A(d={"a": 1, "b": 2}, d2=MyDict(a=1, b=2))
+    x = A(d=cast(Any, {"a": 1, "b": 2}), d2=MyDict(a=1, b=2))
     hash(x)
