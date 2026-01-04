@@ -257,7 +257,7 @@ class MudView(Generic[_T]):
 
         return found.value
 
-    def _evaluate_init_property(self, name: str, prop: chz_init_property) -> Any:
+    def _evaluate_init_property(self, name: str, prop: chz_init_property) -> Any:  # type: ignore[type-arg]
         """Evaluate an init_property (fresh each time - stateless design)."""
         # Evaluate: accessing fields via self freezes them
         return prop.func(self)

@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, Callable, TypeVar, overload
 
-from . import blueprint, factories, mud as mud_module, mungers, tiepin, validators
+from . import blueprint, factories, mungers, tiepin, validators
 from .blueprint import (
     Blueprint,
     Castable,

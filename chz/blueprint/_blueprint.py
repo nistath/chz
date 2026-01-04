@@ -10,7 +10,7 @@ import sys
 import textwrap
 import typing
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, Callable, Final, Generic, Mapping, Protocol
+from typing import TYPE_CHECKING, Any, Callable, Final, Generic, Mapping, Protocol, overload
 
 from typing_extensions import TypeVar
 
@@ -370,7 +370,6 @@ class Blueprint(Generic[_T_cov_def]):
     _U = TypeVar("_U")
 
     if TYPE_CHECKING:
-        from typing import overload
 
         @overload
         def mud(self) -> _T_cov_def:
@@ -458,7 +457,7 @@ class Blueprint(Generic[_T_cov_def]):
                         f"Cannot get target class from MetaFactory annotation {annotation}. "
                         "Use Blueprint with a direct chz class for mud()."
                     )
-                return annotation  # type: ignore[return-value]
+                return annotation
             raise TypeError(
                 f"Cannot get target class from MetaFactory {target}. "
                 "Use Blueprint with a direct chz class for mud()."
@@ -468,7 +467,7 @@ class Blueprint(Generic[_T_cov_def]):
                 f"mud() requires a chz class, got {target}. "
                 "Blueprint target must be a chz class for mud()."
             )
-        return target  # type: ignore[return-value]
+        return target  # pyright: ignore[reportReturnType]
 
     def is_mud_frozen(self, path: str) -> bool:
         """Check if a field path has been read via mud() and is now frozen.
