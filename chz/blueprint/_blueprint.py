@@ -600,12 +600,14 @@ def _collect_params_from_sequence(
     type_for_index: Callable[[int], type]
     if obj_origin is list:
         element_type = getattr(obj, "__args__", [object])[0]
-        type_for_index = lambda i: element_type
+        def type_for_index(i, _element_type=element_type):
+            return _element_type
         variadic_types = [element_type]
 
     elif obj_origin is collections.abc.Sequence:
         element_type = getattr(obj, "__args__", [object])[0]
-        type_for_index = lambda i: element_type
+        def type_for_index(i, _element_type=element_type):
+            return _element_type
         variadic_types = [element_type]
         obj_type_construct = tuple
 
@@ -616,7 +618,8 @@ def _collect_params_from_sequence(
 
         if len(args) == 2 and args[-1] is ...:
             # homogeneous tuple
-            type_for_index = lambda i: args[0]
+            def type_for_index(i, _element_type=args[0]):
+                return _element_type
             variadic_types = [args[0]]
         else:
             # heterogeneous tuple
@@ -630,7 +633,8 @@ def _collect_params_from_sequence(
                         else ""
                     )
                 )
-            type_for_index = lambda i: args[i]
+            def type_for_index(i, _args=args):
+                return _args[i]
             variadic_types = list(args)
     else:
         raise AssertionError

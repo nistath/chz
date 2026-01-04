@@ -267,10 +267,10 @@ def test_standard_union_module():
 
 def test_standard_union_type():
     f = standard(annotation=type[A] | type[X])
-    assert f.unspecified_factory() == None
+    assert f.unspecified_factory() is None
 
     f = standard(annotation=type[A | X])
-    assert f.unspecified_factory() == None
+    assert f.unspecified_factory() is None
 
     f = standard(
         annotation=type[A] | type[X],

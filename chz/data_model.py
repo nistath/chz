@@ -275,7 +275,8 @@ def pretty_format(obj: Any, colored: bool = True) -> str:
             r = field._repr
         else:
             assert field._repr is True
-            r = lambda o: pretty_format(o, colored=colored)
+            def r(o):
+                return pretty_format(o, colored=colored)
 
         x_val = getattr(chz_obj, field.x_name)
         val = getattr(chz_obj, field.logical_name)
@@ -452,7 +453,8 @@ def chz_make_class(cls, version: str | None, typecheck: bool | None) -> type:
             field.logical_name not in cls.__dict__  # ...if something is already there in class
             and field.logical_name not in fields  # ...if a parent has defined the field
         ):
-            fn: Any = lambda self, x_name=field.x_name: getattr(self, x_name)
+            def fn(self, x_name=field.x_name):
+                return getattr(self, x_name)
             fn.__name__ = field.logical_name
             fn = init_property(fn)
             fn.__set_name__(cls, field.logical_name)

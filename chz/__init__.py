@@ -44,6 +44,7 @@ __all__ = [
     "Castable",
     # are the following public?
     "blueprint",
+    "dispatch_entrypoint",
     "factories",
     "tiepin",
 ]

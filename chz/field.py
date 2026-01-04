@@ -166,7 +166,9 @@ class Field:
                 # TODO: change the signature of functions passed to the `munger` argument to be
                 # compatible with `converter`?
                 c = converter
-                munger = lambda s, v: c(v, chzself=s)  # type: ignore
+
+                def munger(s, v):
+                    return c(v, chzself=s)  # type: ignore[arg-type]
 
         if munger is not None and not callable(munger):
             raise TypeError(f"munger must be callable, not {type(munger)}")

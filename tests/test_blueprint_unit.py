@@ -103,9 +103,9 @@ def test_arg_map():
     found = arg_map.get_kv("a.b.c.two")
     assert found is not None
     assert found.key == "a.b.c.two"
-    assert arg_map.get_kv("a.b") == None
-    assert arg_map.get_kv("a.b.c.zero") == None
-    assert arg_map.get_kv("a.b.d") == None
+    assert arg_map.get_kv("a.b") is None
+    assert arg_map.get_kv("a.b.c.zero") is None
+    assert arg_map.get_kv("a.b.d") is None
 
     assert arg_map.subpaths("a.b.c") == ["", "one", "two"]
     assert arg_map.subpaths("a.b.c", strict=True) == ["one", "two"]
@@ -206,13 +206,13 @@ def test_arg_map_wildcard():
 
 
 def test_layer():
-    l = Layer({"...a": 0, "a": 1}, None)
-    assert l.get_kv("a") == ("a", 1, None)
-    l = Layer({"a": 1, "...a": 0}, None)
-    assert l.get_kv("a") == ("a", 1, None)
+    layer = Layer({"...a": 0, "a": 1}, None)
+    assert layer.get_kv("a") == ("a", 1, None)
+    layer = Layer({"a": 1, "...a": 0}, None)
+    assert layer.get_kv("a") == ("a", 1, None)
 
-    l = Layer({"...z": 1, "...x...y...z": 2, "...y...z": 3}, None)
-    assert l.get_kv("x.y.z") == ("...x...y...z", 2, None)
+    layer = Layer({"...z": 1, "...x...y...z": 2, "...y...z": 3}, None)
+    assert layer.get_kv("x.y.z") == ("...x...y...z", 2, None)
 
 
 def test_collapse_layers():
@@ -310,7 +310,7 @@ def test_apply_with_types():
 
 def test_castable_eq():
     assert Castable("None") == Castable("None")
-    assert Castable("None") == None
+    assert Castable("None") == None  # noqa: E711
 
     assert Castable("1") == Castable("1")
     assert Castable("1") == 1

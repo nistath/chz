@@ -1316,8 +1316,8 @@ def test_try_cast_union_overlap():
     assert _simplistic_try_cast("1", str | int) == 1
     assert _simplistic_try_cast("1", int | str) == 1
 
-    assert _simplistic_try_cast("None", str | None) == None
-    assert _simplistic_try_cast("None", None | str) == None
+    assert _simplistic_try_cast("None", str | None) is None
+    assert _simplistic_try_cast("None", None | str) is None
 
     assert _simplistic_try_cast("all", tuple[str, ...] | typing.Literal["all"]) == "all"
     assert _simplistic_try_cast("all", typing.Literal["all"] | tuple[str, ...]) == "all"
@@ -1325,8 +1325,8 @@ def test_try_cast_union_overlap():
     assert _simplistic_try_cast("None", None | typing.Literal["None"]) == "None"
     assert _simplistic_try_cast("None", typing.Literal["None"] | None) == "None"
 
-    assert _simplistic_try_cast("None", None | tuple[str, ...]) == None
-    assert _simplistic_try_cast("None", tuple[str, ...] | None) == None
+    assert _simplistic_try_cast("None", None | tuple[str, ...]) is None
+    assert _simplistic_try_cast("None", tuple[str, ...] | None) is None
 
     assert _simplistic_try_cast("", tuple[str, ...] | str) == ()
     assert _simplistic_try_cast("", tuple[str, ...] | typing.Literal[""]) == ""
