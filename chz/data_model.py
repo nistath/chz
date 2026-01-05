@@ -271,12 +271,14 @@ def pretty_format(obj: Any, colored: bool = True) -> str:
         # use x_name so that repr can be copy-pasted to create the same object
         if field._repr is False:
             return "..."
-        if callable(field._repr):
-            r = field._repr
-        else:
-            assert field._repr is True
-            def r(o):
+        r: Callable[[Any], str]
+        if field._repr is True:
+            def _default_repr(o: Any) -> str:
                 return pretty_format(o, colored=colored)
+
+            r = _default_repr
+        else:
+            r = field._repr
 
         x_val = getattr(chz_obj, field.x_name)
         val = getattr(chz_obj, field.logical_name)
@@ -445,9 +447,9 @@ def chz_make_class(cls, version: str | None, typecheck: bool | None) -> type:
                     f"has a munger"
                 )
             munger.__name__ = field.logical_name
-            munger = init_property(munger)
-            munger.__set_name__(cls, field.logical_name)
-            setattr(cls, field.logical_name, munger)
+            init_prop = init_property(munger)
+            init_prop.__set_name__(cls, field.logical_name)
+            setattr(cls, field.logical_name, init_prop)
         if (
             # but don't clobber existing definitions...
             field.logical_name not in cls.__dict__  # ...if something is already there in class
@@ -456,9 +458,9 @@ def chz_make_class(cls, version: str | None, typecheck: bool | None) -> type:
             def fn(self, x_name=field.x_name):
                 return getattr(self, x_name)
             fn.__name__ = field.logical_name
-            fn = init_property(fn)
-            fn.__set_name__(cls, field.logical_name)
-            setattr(cls, field.logical_name, fn)
+            init_prop = init_property(fn)
+            init_prop.__set_name__(cls, field.logical_name)
+            setattr(cls, field.logical_name, init_prop)
 
         fields[field.logical_name] = field
 

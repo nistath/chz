@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import functools
 import sys
-from typing import Any, Callable
+from typing import Any, Callable, cast
 
 import chz
 from chz.mungers import Munger, default_munger
@@ -165,10 +165,12 @@ class Field:
                 # and so they are called as converter(value, chzself=chzself).
                 # TODO: change the signature of functions passed to the `munger` argument to be
                 # compatible with `converter`?
-                c = converter
+                c = cast(Callable[..., Any], converter)
 
-                def munger(s, v):
-                    return c(v, chzself=s)  # type: ignore[arg-type]
+                def _converter_munger(s: Any, v: Any) -> Any:
+                    return c(v, chzself=s)
+
+                munger = _converter_munger
 
         if munger is not None and not callable(munger):
             raise TypeError(f"munger must be callable, not {type(munger)}")

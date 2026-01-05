@@ -249,7 +249,7 @@ def test_blueprint_mud_freezes_reference_dependencies():
 
     view = chz.Blueprint(Foo).mud()
     view.a = 1
-    view.b = chz.blueprint.Reference("a")
+    view.b = cast(Any, chz.blueprint.Reference("a"))
     assert view.b == 1
 
     with pytest.raises(chz.data_model.FrozenInstanceError):
@@ -271,7 +271,7 @@ def test_blueprint_mud_freeze_survives_apply_subpath():
     assert child_view.x == 1
 
     parent_bp = chz.Blueprint(Parent)
-    parent_bp.apply(cast(chz.Blueprint[Any], child_bp), subpath="child")
+    parent_bp.apply(child_bp, subpath="child")
     parent_view = parent_bp.mud()
 
     with pytest.raises(chz.data_model.FrozenInstanceError):

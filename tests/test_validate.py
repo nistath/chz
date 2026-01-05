@@ -108,7 +108,7 @@ def test_validate_inheritance_field_level():
 
     @chz.chz
     class B(A):
-        x: Y
+        x: Y  # pyright: ignore[reportIncompatibleVariableOverride]
 
     A(x=X(a="asdf"))
     A(x=Y(a="asdf", b=1))

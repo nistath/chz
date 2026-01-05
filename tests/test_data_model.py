@@ -155,9 +155,9 @@ def test_immutability():
 
     x = X(a=1)
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        x.a = 2  # type: ignore
+        x.a = 2
     with pytest.raises(chz.data_model.FrozenInstanceError):
-        x.b = 1  # type: ignore
+        x.b = 1  # type: ignore[attr-defined]
 
     @chz.chz
     class Y:
@@ -173,7 +173,7 @@ def test_immutability():
 
         @c.setter
         def c(self, value):
-            self.a = value  # type: ignore
+            self.a = value
 
         @chz.init_property
         def d(self):
@@ -366,7 +366,7 @@ def test_replace():
 
         @c.setter
         def c(self, value):
-            self.a = value  # type: ignore
+            self.a = value
 
         @chz.init_property
         def d(self):
@@ -1036,7 +1036,7 @@ def test_conflicting_superclass_field_in_base():
         X_field: int = 1
 
         @chz.init_property  # type: ignore[misc]  # pyright: ignore[reportIncompatibleVariableOverride]
-        def field(self):  # pyright: ignore[reportIncompatibleVariableOverride]
+        def field(self):  # type: ignore[override]  # pyright: ignore[reportIncompatibleVariableOverride]
             return getattr(self, "X_field") + 10
 
     assert getattr(B2(), "X_field") == 1
@@ -1045,7 +1045,7 @@ def test_conflicting_superclass_field_in_base():
     @chz.chz
     class B3(BaseB):
         @chz.init_property  # type: ignore[misc]  # pyright: ignore[reportIncompatibleVariableOverride]
-        def field(self):  # pyright: ignore[reportIncompatibleVariableOverride]
+        def field(self):  # type: ignore[override]  # pyright: ignore[reportIncompatibleVariableOverride]
             return getattr(self, "X_field") + 100
 
     assert getattr(B3(), "X_field") == 0

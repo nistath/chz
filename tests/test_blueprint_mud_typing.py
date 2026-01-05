@@ -33,17 +33,21 @@ class PolyParent:
     )
 
 
+def _int_value() -> int:
+    return 1
+
+
 def test_blueprint_mud_typing() -> None:
-    view = chz.Blueprint(Parent).mud()
-    view.value = 1
+    view = chz.Blueprint[Parent](Parent).mud()
+    view.value = _int_value()
     assert_type(view.value, int)
     assert_type(view.child, Child)
 
 
 def test_blueprint_mud_polymorphic_typing() -> None:
-    child_view = chz.Blueprint(PolyParent).mud_view("child", PolyChild)
-    child_view.a = 1
+    child_view = chz.Blueprint[PolyParent](PolyParent).mud_view("child", PolyChild)
+    child_view.a = _int_value()
     assert_type(child_view.a, int)
     assert_type(child_view, PolyChild)
-    child_view.b = 1
+    child_view.b = _int_value()
     assert_type(child_view.b, int)

@@ -10,7 +10,7 @@ import sys
 import textwrap
 import typing
 from dataclasses import dataclass
-from typing import Any, Callable, Final, Generic, Mapping, Protocol
+from typing import Any, Callable, Final, Generic, Mapping, Protocol, overload
 
 from typing_extensions import TypeVar
 
@@ -76,10 +76,13 @@ class Castable(SpecialArg):
 
 
 if typing.TYPE_CHECKING:
-    Reference: typing.TypeAlias = Any
 
-    class _ReferenceRuntime(SpecialArg):
+    class Reference(SpecialArg):
         ref: str
+
+        def __init__(self, ref: str) -> None: ...
+
+    _ReferenceRuntime = Reference
 else:
 
     class Reference(SpecialArg):
@@ -257,6 +260,26 @@ class Blueprint(Generic[_T_cov_def]):
         cloned._mud_read_index = self._mud_read_index
         cloned._mud_write_index = self._mud_write_index
         return cloned
+
+    @overload
+    def apply(
+        self,
+        values: Blueprint[_T_cov_def] | Mapping[str, Any],
+        layer_name: str | None = None,
+        *,
+        subpath: None = None,
+        strict: bool = False,
+    ) -> Blueprint[_T_cov_def]: ...
+
+    @overload
+    def apply(
+        self,
+        values: Blueprint[Any] | Mapping[str, Any],
+        layer_name: str | None = None,
+        *,
+        subpath: str,
+        strict: bool = False,
+    ) -> Blueprint[_T_cov_def]: ...
 
     def apply(
         self,
@@ -664,29 +687,30 @@ def _collect_params_from_sequence(
     obj_origin = getattr(obj, "__origin__", obj)
     obj_type_construct = obj_origin
 
-    type_for_index: Callable[[int], type]
+    type_for_index: Callable[[int], Any]
     if obj_origin is list:
         element_type = getattr(obj, "__args__", [object])[0]
-        def type_for_index(i, _element_type=element_type):
+        def _type_for_index_list(i: int, _element_type: Any = element_type) -> Any:
             return _element_type
+        type_for_index = _type_for_index_list
         variadic_types = [element_type]
 
     elif obj_origin is collections.abc.Sequence:
         element_type = getattr(obj, "__args__", [object])[0]
-        def type_for_index(i, _element_type=element_type):
+        def _type_for_index_sequence(i: int, _element_type: Any = element_type) -> Any:
             return _element_type
+        type_for_index = _type_for_index_sequence
         variadic_types = [element_type]
         obj_type_construct = tuple
 
     elif obj_origin is tuple:
-        args: tuple[Any, ...] | None = getattr(obj, "__args__", None)
-        if args is None:
-            args = (Any, ...)
+        args: tuple[Any, ...] = getattr(obj, "__args__", None) or (Any, ...)
 
         if len(args) == 2 and args[-1] is ...:
             # homogeneous tuple
-            def type_for_index(i, _element_type=args[0]):
+            def _type_for_index_tuple(i: int, _element_type: Any = args[0]) -> Any:
                 return _element_type
+            type_for_index = _type_for_index_tuple
             variadic_types = [args[0]]
         else:
             # heterogeneous tuple
@@ -700,8 +724,11 @@ def _collect_params_from_sequence(
                         else ""
                     )
                 )
-            def type_for_index(i, _args=args):
+            def _type_for_index_tuple_index(
+                i: int, _args: tuple[Any, ...] = args
+            ) -> Any:
                 return _args[i]
+            type_for_index = _type_for_index_tuple_index
             variadic_types = list(args)
     else:
         raise AssertionError
